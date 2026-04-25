@@ -1,0 +1,279 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+
+import Shell from "@/components/Shell";
+import { api } from "@/lib/api";
+
+export default function PaperPage({ params }: { params: { id: string } }) {
+  const [paper, setPaper] = useState<any | null>(null);
+  const [related, setRelated] = useState<any[]>([]);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [draft, setDraft] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [p, r, n] = await Promise.all([
+        api.getPaper(params.id),
+        api.related(params.id).catch(() => ({ related: [] })),
+        api.listNotes(params.id),
+      ]);
+      setPaper(p);
+      setRelated(r.related ?? []);
+      setNotes(n.notes ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, [params.id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function saveNote() {
+    const content = draft.trim();
+    if (!content) return;
+    setDraft("");
+    await api.createNote({ content, linked_paper_id: params.id });
+    load();
+  }
+
+  async function exportTex() {
+    if (!paper) return;
+    setExporting(true);
+    try {
+      const body =
+        paper.summary ||
+        paper.abstract ||
+        `Notes on "${paper.title}".`;
+      const out = await api.exportLatex({
+        title: paper.title,
+        body: `${body}\n\n[S1]`,
+        paper_ids: [paper.id],
+      });
+      const blob = new Blob([out.tex], { type: "application/x-tex" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = out.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Shell>
+        <div className="p-6 text-muted">Loading…</div>
+      </Shell>
+    );
+  }
+
+  if (!paper) {
+    return (
+      <Shell>
+        <div className="p-6 text-muted">Paper not found.</div>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-4">
+          <Link href="/library" className="text-sm text-muted hover:text-white">
+            ← Library
+          </Link>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted">
+              {paper.source_type ?? "paper"}
+              {paper.year ? ` · ${paper.year}` : ""}
+            </div>
+            <h1 className="mt-1 text-2xl font-semibold text-white">
+              {paper.title}
+            </h1>
+            <div className="mt-1 text-sm text-muted">
+              {(paper.authors ?? []).join(", ")}
+            </div>
+          </div>
+
+          {paper.summary && (
+            <div className="card">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white">
+                  AI Summary
+                </h2>
+                <button
+                  onClick={exportTex}
+                  disabled={exporting}
+                  className="chip hover:text-white"
+                >
+                  {exporting ? "exporting…" : "export .tex"}
+                </button>
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-muted/90">
+                {paper.summary}
+              </p>
+            </div>
+          )}
+
+          {paper.abstract && (
+            <div className="card">
+              <h2 className="mb-2 text-sm font-semibold text-white">Abstract</h2>
+              <p className="whitespace-pre-wrap text-sm text-muted/90">
+                {paper.abstract}
+              </p>
+            </div>
+          )}
+
+          {paper.pdf_url ? (
+            <div className="card">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white">PDF</h2>
+                <a
+                  href={paper.pdf_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="chip hover:text-white"
+                >
+                  open ↗
+                </a>
+              </div>
+              <iframe
+                src={paper.pdf_url}
+                className="h-[600px] w-full rounded-md border border-border bg-black"
+              />
+            </div>
+          ) : paper.source_url ? (
+            <div className="card">
+              <a
+                href={paper.source_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-accent2"
+              >
+                View source ↗
+              </a>
+            </div>
+          ) : null}
+
+          <div className="card">
+            <h2 className="mb-2 text-sm font-semibold text-white">Notes</h2>
+            <div className="space-y-2">
+              {notes.map((n) => (
+                <NoteRow key={n.id} note={n} onChange={load} />
+              ))}
+              {notes.length === 0 && (
+                <div className="text-xs text-muted">No notes yet.</div>
+              )}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <textarea
+                rows={2}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Jot something down — it'll be linked to this paper."
+                className="input"
+              />
+              <button onClick={saveNote} className="btn btn-primary self-start">
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <aside className="space-y-3">
+          <div className="card">
+            <h2 className="mb-2 text-sm font-semibold text-white">Related</h2>
+            {related.length === 0 ? (
+              <div className="text-xs text-muted">
+                Add more papers to see related work.
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {related.map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      href={`/papers/${r.id}`}
+                      className="block text-sm text-white hover:underline"
+                    >
+                      {r.title}
+                    </Link>
+                    <div className="text-xs text-muted">
+                      {(r.authors ?? []).slice(0, 2).join(", ")}
+                      {typeof r.similarity === "number" &&
+                        ` · ${(r.similarity * 100).toFixed(0)}% similar`}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <Link
+            href={`/chat?paper=${paper.id}`}
+            className="btn w-full justify-center"
+          >
+            Ask the assistant about this paper
+          </Link>
+        </aside>
+      </div>
+    </Shell>
+  );
+}
+
+function NoteRow({ note, onChange }: { note: any; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.content);
+
+  async function save() {
+    await api.updateNote(note.id, { content: draft });
+    setEditing(false);
+    onChange();
+  }
+  async function del() {
+    await api.deleteNote(note.id);
+    onChange();
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-panel2 p-2 text-sm">
+      {editing ? (
+        <>
+          <textarea
+            rows={2}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="input"
+          />
+          <div className="mt-1 flex gap-1">
+            <button onClick={save} className="chip hover:text-white">
+              save
+            </button>
+            <button onClick={() => setEditing(false)} className="chip">
+              cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="whitespace-pre-wrap text-muted/90">{note.content}</div>
+          <div className="mt-1 flex gap-1 text-xs">
+            <button onClick={() => setEditing(true)} className="chip hover:text-white">
+              edit
+            </button>
+            <button onClick={del} className="chip hover:border-red-400 hover:text-red-300">
+              delete
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

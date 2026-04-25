@@ -1,0 +1,179 @@
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel
+
+from ..auth import CurrentUser, CurrentUserDep
+from ..db import get_supabase
+from ..services import arxiv as arxiv_svc
+from ..services import doi as doi_svc
+from ..services.chunking import chunk_pages
+from ..services.claude import summarize_paper
+from ..services.embeddings import embed_texts
+from ..services.pdf import parse_pdf
+
+router = APIRouter(prefix="/ingest", tags=["ingest"])
+
+
+class ArxivIn(BaseModel):
+    arxiv: str
+
+
+class DoiIn(BaseModel):
+    doi: str
+
+
+def _persist(
+    user: CurrentUser,
+    *,
+    pdf_bytes: bytes,
+    title: str,
+    authors: list[str],
+    year: int | None,
+    abstract: str,
+    source_url: str | None,
+    source_type: str,
+) -> dict:
+    parsed = parse_pdf(pdf_bytes)
+    final_title = title or parsed.title or "Untitled"
+    final_authors = authors or parsed.authors
+
+    summary = ""
+    try:
+        summary = summarize_paper(final_title, parsed.full_text)
+    except Exception:
+        # Don't block ingest on a summary failure; we still want chunks.
+        summary = ""
+
+    sb = get_supabase()
+    paper = (
+        sb.table("papers")
+        .insert(
+            {
+                "user_id": user.id,
+                "title": final_title,
+                "authors": final_authors,
+                "year": year,
+                "abstract": abstract or None,
+                "summary": summary or None,
+                "source_url": source_url,
+                "source_type": source_type,
+                "status": "unread",
+            }
+        )
+        .execute()
+        .data[0]
+    )
+
+    paper_id = paper["id"]
+
+    # Upload the raw PDF to storage so the frontend can render it.
+    storage_path = f"{user.id}/{paper_id}.pdf"
+    try:
+        sb.storage.from_("papers").upload(
+            path=storage_path,
+            file=pdf_bytes,
+            file_options={"content-type": "application/pdf", "upsert": "true"},
+        )
+        sb.table("papers").update({"storage_path": storage_path}).eq("id", paper_id).execute()
+    except Exception:
+        # Storage upload is best-effort.
+        pass
+
+    chunks = chunk_pages(parsed)
+    if chunks:
+        # Embed in batches of 64.
+        rows = []
+        for i in range(0, len(chunks), 64):
+            batch = chunks[i : i + 64]
+            vectors = embed_texts([c.content for c in batch])
+            for c, v in zip(batch, vectors):
+                rows.append(
+                    {
+                        "paper_id": paper_id,
+                        "user_id": user.id,
+                        "content": c.content,
+                        "embedding": v,
+                        "chunk_index": c.chunk_index,
+                        "page": c.page,
+                    }
+                )
+        # Insert chunks in batches of 200 to keep request size sane.
+        for i in range(0, len(rows), 200):
+            sb.table("chunks").insert(rows[i : i + 200]).execute()
+
+    return {**paper, "summary": summary, "n_chunks": len(chunks)}
+
+
+@router.post("/upload")
+async def ingest_upload(
+    file: UploadFile = File(...),
+    user: CurrentUser = CurrentUserDep,
+):
+    if (file.content_type or "").lower() not in {
+        "application/pdf",
+        "application/octet-stream",
+    } and not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF uploads are supported")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    return _persist(
+        user,
+        pdf_bytes=data,
+        title="",
+        authors=[],
+        year=None,
+        abstract="",
+        source_url=None,
+        source_type="upload",
+    )
+
+
+@router.post("/arxiv")
+def ingest_arxiv(body: ArxivIn, user: CurrentUser = CurrentUserDep):
+    arxiv_id = arxiv_svc.normalize_arxiv_id(body.arxiv)
+    if not arxiv_id:
+        raise HTTPException(status_code=400, detail="Could not parse arXiv id")
+
+    meta = arxiv_svc.fetch_arxiv(arxiv_id)
+    pdf_bytes = arxiv_svc.download_pdf(meta.pdf_url)
+
+    return _persist(
+        user,
+        pdf_bytes=pdf_bytes,
+        title=meta.title,
+        authors=meta.authors,
+        year=meta.year,
+        abstract=meta.abstract,
+        source_url=f"https://arxiv.org/abs/{arxiv_id}",
+        source_type="arxiv",
+    )
+
+
+@router.post("/doi")
+def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
+    """DOI ingest stores metadata only — many publishers don't allow PDF
+    download from a DOI alone. Useful for tracking references."""
+    meta = doi_svc.fetch_doi(body.doi)
+
+    sb = get_supabase()
+    paper = (
+        sb.table("papers")
+        .insert(
+            {
+                "user_id": user.id,
+                "title": meta.title or "Untitled",
+                "authors": meta.authors,
+                "year": meta.year,
+                "abstract": meta.abstract or None,
+                "summary": None,
+                "source_url": meta.url,
+                "source_type": "doi",
+                "status": "queued",
+            }
+        )
+        .execute()
+        .data[0]
+    )
+    return {**paper, "n_chunks": 0}
