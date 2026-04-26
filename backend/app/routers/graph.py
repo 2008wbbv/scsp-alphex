@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
 from ..services.claude import generate_chart_code, analyze_paper_for_charts
+from .papers import _build_chunks
 
 router = APIRouter(prefix="/graph", tags=["graph"])
 
@@ -137,7 +138,7 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
     paper = (
         sb.table("papers")
-        .select("id,title,user_id")
+        .select("id,title,abstract,source_type,source_url,storage_path,user_id")
         .eq("id", paper_id)
         .eq("user_id", user.id)
         .maybe_single()
@@ -156,8 +157,22 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
         .data
         or []
     )
+
+    # Auto-index if no chunks exist yet.
     if not chunks:
-        raise HTTPException(status_code=422, detail="No text found for this paper. DOI papers only store the abstract — delete and re-import this paper to pick up the fix.")
+        _build_chunks(sb, paper_id, user.id, paper)
+        chunks = (
+            sb.table("chunks")
+            .select("content")
+            .eq("paper_id", paper_id)
+            .order("chunk_index")
+            .execute()
+            .data
+            or []
+        )
+
+    if not chunks:
+        raise HTTPException(status_code=422, detail="No text could be extracted from this paper.")
 
     texts = [c["content"] for c in chunks]
     try:
