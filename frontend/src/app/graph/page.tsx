@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Network } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
@@ -10,10 +11,17 @@ import { api } from "@/lib/api";
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
 
 const STATUS_COLOR: Record<string, string> = {
-  unread: "#6b7280",
-  reading: "#6366f1",
-  read: "#22c55e",
-  queued: "#f59e0b",
+  unread:  "#4b5563",
+  reading: "#818cf8",
+  read:    "#34d399",
+  queued:  "#fbbf24",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  unread:  "text-gray-400",
+  reading: "text-indigo-300",
+  read:    "text-emerald-400",
+  queued:  "text-amber-300",
 };
 
 export default function GraphPage() {
@@ -58,39 +66,44 @@ export default function GraphPage() {
   return (
     <Shell>
       <div className="mx-auto max-w-6xl space-y-4 p-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-white">Paper graph</h1>
-          <p className="text-sm text-muted">
-            Papers are connected when cosine similarity &gt; 0.6. Click a node to
-            select it.
-          </p>
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Paper graph</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              Nodes connect when cosine similarity &gt; 0.6. Click a node to inspect it.
+            </p>
+          </div>
+          {/* Legend */}
+          <div className="hidden md:flex items-center gap-3">
+            {Object.entries(STATUS_COLOR).map(([s, c]) => (
+              <span key={s} className="flex items-center gap-1.5 text-xs text-muted">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: c }} />
+                {s}
+              </span>
+            ))}
+          </div>
         </header>
-
-        <div className="flex gap-4 text-xs text-muted">
-          {Object.entries(STATUS_COLOR).map(([s, c]) => (
-            <span key={s} className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ background: c }}
-              />
-              {s}
-            </span>
-          ))}
-        </div>
 
         {error && <div className="text-sm text-red-300">{error}</div>}
 
         <div
           ref={containerRef}
-          className="relative h-[600px] w-full overflow-hidden rounded-lg border border-border bg-panel/30"
+          className="relative h-[600px] w-full overflow-hidden rounded-xl border border-border bg-[#0d0d11]"
         >
           {loading ? (
-            <div className="flex h-full items-center justify-center text-muted">
-              Loading graph…
+            <div className="flex h-full items-center justify-center">
+              <div className="text-center">
+                <Network size={32} className="mx-auto mb-3 text-muted/30 animate-pulse" />
+                <div className="text-sm text-muted">Building graph…</div>
+              </div>
             </div>
           ) : graphData.nodes.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-muted">
-              Add papers to your library to see the graph.
+            <div className="flex h-full items-center justify-center">
+              <div className="text-center">
+                <Network size={32} className="mx-auto mb-3 text-muted/30" />
+                <div className="text-sm font-medium text-white">No papers yet</div>
+                <div className="mt-1 text-xs text-muted">Add papers to your library to see the similarity graph</div>
+              </div>
             </div>
           ) : (
             <ForceGraph2D
@@ -98,12 +111,10 @@ export default function GraphPage() {
               height={dims.height}
               graphData={graphData}
               nodeLabel="title"
-              nodeColor={(n: any) =>
-                STATUS_COLOR[n.status] ?? STATUS_COLOR.unread
-              }
+              nodeColor={(n: any) => STATUS_COLOR[n.status] ?? STATUS_COLOR.unread}
               nodeVal={(n: any) => n.val}
-              linkWidth={(l: any) => (l.value ?? 0.5) * 3}
-              linkColor={() => "rgba(99,102,241,0.35)"}
+              linkWidth={(l: any) => (l.value ?? 0.5) * 2.5}
+              linkColor={() => "rgba(124,92,255,0.25)"}
               backgroundColor="transparent"
               onNodeClick={(node: any) => setSelected(node)}
               nodeCanvasObjectMode={() => "after"}
@@ -113,41 +124,35 @@ export default function GraphPage() {
                 globalScale: number
               ) => {
                 if (globalScale < 0.7) return;
-                const label =
-                  node.title?.length > 26
-                    ? node.title.slice(0, 26) + "…"
-                    : node.title;
-                const fontSize = 11 / globalScale;
-                ctx.font = `${fontSize}px sans-serif`;
-                ctx.fillStyle = "rgba(255,255,255,0.85)";
+                const label = node.title?.length > 28 ? node.title.slice(0, 28) + "…" : node.title;
+                const fontSize = 10 / globalScale;
+                ctx.font = `${fontSize}px Inter, sans-serif`;
+                ctx.fillStyle = "rgba(255,255,255,0.7)";
                 ctx.textAlign = "center";
-                ctx.fillText(label, node.x, node.y + 10 / globalScale);
+                ctx.fillText(label, node.x, node.y + 11 / globalScale);
               }}
             />
           )}
         </div>
 
         {selected && (
-          <div className="card flex items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-medium text-white">
-                {selected.title}
-              </div>
-              <div className="mt-0.5 text-xs text-muted">
-                {(selected.authors ?? []).slice(0, 3).join(", ")}
+          <div className="animate-fade-up rounded-xl border border-border bg-panel p-4 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-white">{selected.title}</div>
+              <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
+                {selected.authors?.slice(0, 2).join(", ")}
                 {selected.year ? ` · ${selected.year}` : ""}
-                {` · ${selected.status}`}
+                <span className={`font-medium ${STATUS_LABEL[selected.status] ?? "text-muted"}`}>
+                  · {selected.status}
+                </span>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Link
-                href={`/papers/${selected.id}`}
-                className="btn btn-primary text-xs"
-              >
+            <div className="flex shrink-0 gap-2">
+              <Link href={`/papers/${selected.id}`} className="btn btn-primary text-xs">
                 Open paper
               </Link>
-              <button onClick={() => setSelected(null)} className="chip">
-                dismiss
+              <button onClick={() => setSelected(null)} className="btn text-xs">
+                Dismiss
               </button>
             </div>
           </div>

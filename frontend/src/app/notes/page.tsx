@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { FileText, Plus } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
@@ -69,7 +70,7 @@ export default function NotesPage() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 100);
     } catch {
-      // silently fail — no loading state to reset
+      // silently fail
     }
   }
 
@@ -84,16 +85,20 @@ export default function NotesPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-4xl space-y-6 p-6">
+      <div className="mx-auto max-w-3xl space-y-6 p-6">
         <header>
           <h1 className="text-2xl font-semibold text-white">Notes</h1>
-          <p className="text-sm text-muted">
-            Free-form notes. Link them to a paper to auto-populate citations on
-            LaTeX export.
+          <p className="mt-0.5 text-sm text-muted">
+            Free-form notes. Link to a paper for auto-populated citations on LaTeX export.
           </p>
         </header>
 
-        <form onSubmit={create} className="card space-y-3">
+        {/* Create form */}
+        <form onSubmit={create} className="rounded-lg border border-border bg-panel p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted uppercase tracking-wide">
+            <Plus size={12} />
+            New note
+          </div>
           <input
             className="input"
             placeholder="Title (optional)"
@@ -102,7 +107,7 @@ export default function NotesPage() {
           />
           <textarea
             rows={4}
-            className="input"
+            className="input resize-none"
             placeholder="Write your note. Use [S1] to cite the linked paper."
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -122,37 +127,46 @@ export default function NotesPage() {
             </select>
             <button className="btn btn-primary ml-auto">Save note</button>
           </div>
-          {saveError && <div className="text-sm text-red-300">{saveError}</div>}
+          {saveError && <div className="text-xs text-red-300">{saveError}</div>}
         </form>
 
+        {/* Notes list */}
         {loading ? (
-          <div className="text-muted">Loading…</div>
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-24 rounded-lg border border-border bg-panel animate-pulse" />
+            ))}
+          </div>
         ) : loadError ? (
           <div className="text-sm text-red-300">{loadError}</div>
         ) : notes.length === 0 ? (
-          <div className="card text-center text-muted">
-            No notes yet. Write one above.
+          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-panel/40 py-14 text-center">
+            <FileText size={28} className="text-muted/30" />
+            <div>
+              <div className="text-sm font-medium text-white">No notes yet</div>
+              <div className="mt-0.5 text-xs text-muted">Write your first note above</div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
             {notes.map((n) => {
               const linked = papers.find((p) => p.id === n.linked_paper_id);
               return (
-                <div key={n.id} className="card">
-                  <div className="flex items-center justify-between">
+                <div key={n.id} className="group rounded-lg border border-border bg-panel p-4 transition-all hover:border-border/60 animate-fade-up">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="text-sm font-medium text-white">
                       {n.title || "Untitled note"}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => exportTex(n)}
-                        className="chip hover:text-white"
+                        className="chip hover:text-white hover:border-border/60"
                       >
-                        export .tex
+                        .tex
                       </button>
                       <button
                         onClick={() => del(n.id)}
-                        className="chip hover:border-red-400 hover:text-red-300"
+                        className="chip hover:border-red-400/60 hover:text-red-300 hover:bg-red-500/10"
                       >
                         delete
                       </button>
@@ -166,7 +180,7 @@ export default function NotesPage() {
                       → {linked.title}
                     </Link>
                   )}
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-muted/90">
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted/80">
                     {n.content}
                   </p>
                 </div>
