@@ -118,7 +118,7 @@ function ChatPageInner() {
         {/* Header */}
         <header className="mb-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-[#0b0b0e]">Assistant</h1>
+            <h1 className="text-2xl font-semibold text-fg">Assistant</h1>
             <p className="text-xs text-muted">
               {paperId ? "Scoped to one paper." : "Grounded in your library."}{" "}
               Citations appear as{" "}
@@ -133,8 +133,8 @@ function ChatPageInner() {
               aria-pressed={mode === "chat"}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 mode === "chat"
-                  ? "bg-accent/20 text-accent shadow-sm"
-                  : "text-muted hover:text-[#0b0b0e]"
+                  ? "bg-accent/20 text-fg shadow-sm"
+                  : "text-muted hover:text-fg"
               }`}
             >
               <MessageSquare size={12} />
@@ -145,8 +145,8 @@ function ChatPageInner() {
               aria-pressed={mode === "graph"}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 mode === "graph"
-                  ? "bg-accent/20 text-accent shadow-sm"
-                  : "text-muted hover:text-[#0b0b0e]"
+                  ? "bg-accent/20 text-fg shadow-sm"
+                  : "text-muted hover:text-fg"
               }`}
             >
               <BarChart3 size={12} />
@@ -172,13 +172,13 @@ function ChatPageInner() {
                     )}
                   </div>
                 </div>
-                <div className="text-sm font-medium text-[#0b0b0e]">
+                <p className="text-sm font-semibold text-fg">
                   {mode === "graph" ? "Describe a chart" : "Ask anything"}
-                </div>
-                <p className="mt-1 text-xs text-muted">
+                </p>
+                <p className="mt-1.5 text-xs text-muted">
                   {mode === "graph"
                     ? "Claude writes Python, the backend executes it, and the PNG appears here."
-                    : "The assistant retrieves relevant passages from your library and cites them inline."}
+                    : "Retrieves passages from your library and cites them inline."}
                 </p>
               </div>
             </div>
@@ -224,8 +224,8 @@ function Bubble({ msg }: { msg: Msg }) {
       <div
         className={`max-w-[82%] rounded-xl p-3.5 text-sm leading-relaxed ${
           isUser
-            ? "bg-[#0b0b0e] text-white shadow-md"
-            : "border border-border bg-panel text-[#0b0b0e]"
+            ? "bg-gradient-to-br from-accent/80 to-accent/60 text-white shadow-md shadow-accent/10"
+            : "border border-border bg-panel text-fg"
         }`}
       >
         <div className="whitespace-pre-wrap">
@@ -244,7 +244,7 @@ function Bubble({ msg }: { msg: Msg }) {
 
         {msg.role === "assistant" && msg.code && (
           <details className="mt-3 text-xs">
-            <summary className="cursor-pointer text-muted hover:text-[#0b0b0e] transition-colors">
+            <summary className="cursor-pointer text-muted hover:text-fg transition-colors">view code ↓
               view code ↓
             </summary>
             <pre className="mt-2 overflow-x-auto rounded-lg border border-border bg-black/50 p-3 font-mono text-[11px] leading-relaxed text-muted/90">

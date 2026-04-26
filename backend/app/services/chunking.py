@@ -8,7 +8,7 @@ from .pdf import ParsedPDF
 class Chunk:
     content: str
     chunk_index: int
-    page: int
+    page: int | None
 
 
 _WHITESPACE = re.compile(r"\s+")

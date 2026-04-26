@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
-import { stripHtml } from "@/lib/utils";
 
 export default function PaperPage({ params }: { params: { id: string } }) {
   const [paper, setPaper] = useState<any | null>(null);
@@ -17,6 +16,8 @@ export default function PaperPage({ params }: { params: { id: string } }) {
   const [charts, setCharts] = useState<any[]>([]);
   const [chartsLoading, setChartsLoading] = useState(false);
   const [chartsError, setChartsError] = useState<string | null>(null);
+  const [rechunking, setRechunking] = useState(false);
+  const [rechunkMsg, setRechunkMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +50,19 @@ export default function PaperPage({ params }: { params: { id: string } }) {
       load();
     } catch {
       setDraft(content);
+    }
+  }
+
+  async function rechunk() {
+    setRechunking(true);
+    setRechunkMsg(null);
+    try {
+      const { n_chunks } = await api.rechunkPaper(params.id);
+      setRechunkMsg(`Indexed ${n_chunks} snippet${n_chunks !== 1 ? "s" : ""}. The assistant can now search this paper.`);
+    } catch (err: any) {
+      setRechunkMsg(err.message ?? "Re-indexing failed");
+    } finally {
+      setRechunking(false);
     }
   }
 
@@ -110,7 +124,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
     <Shell>
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
-          <Link href="/library" className="text-sm text-muted hover:text-[#0b0b0e]">
+          <Link href="/library" className="text-sm text-muted hover:text-fg">
             ← Library
           </Link>
           <div>
@@ -118,8 +132,8 @@ export default function PaperPage({ params }: { params: { id: string } }) {
               {paper.source_type ?? "paper"}
               {paper.year ? ` · ${paper.year}` : ""}
             </div>
-            <h1 className="mt-1 text-2xl font-semibold text-[#0b0b0e]">
-              {stripHtml(paper.title)}
+            <h1 className="mt-1 text-2xl font-semibold text-fg">
+              {paper.title}
             </h1>
             <div className="mt-1 text-sm text-muted">
               {(paper.authors ?? []).join(", ")}
@@ -129,13 +143,13 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           {paper.summary && (
             <div className="card">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-[#0b0b0e]">
+                <h2 className="text-sm font-semibold text-fg">
                   AI Summary
                 </h2>
                 <button
                   onClick={exportTex}
                   disabled={exporting}
-                  className="chip hover:text-[#0b0b0e]"
+                  className="chip hover:text-fg"
                 >
                   {exporting ? "exporting…" : "export .tex"}
                 </button>
@@ -148,7 +162,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
 
           {paper.abstract && (
             <div className="card">
-              <h2 className="mb-2 text-sm font-semibold text-[#0b0b0e]">Abstract</h2>
+              <h2 className="mb-2 text-sm font-semibold text-fg">Abstract</h2>
               <p className="whitespace-pre-wrap text-sm text-muted/90">
                 {paper.abstract}
               </p>
@@ -158,11 +172,11 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           {/* Charts from paper */}
           <div className="card">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#0b0b0e]">Data Visualizations</h2>
+              <h2 className="text-sm font-semibold text-fg">Data Visualizations</h2>
               <button
                 onClick={generateCharts}
                 disabled={chartsLoading}
-                className="chip hover:text-[#0b0b0e] disabled:opacity-50"
+                className="chip hover:text-fg disabled:opacity-50"
               >
                 {chartsLoading ? "Analyzing paper…" : charts.length > 0 ? "Regenerate" : "Generate charts"}
               </button>
@@ -175,7 +189,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
             )}
             {charts.map((c, i) => (
               <div key={i} className="mb-4 last:mb-0">
-                <div className="mb-1 text-sm font-medium text-[#0b0b0e]">{c.title}</div>
+                <div className="mb-1 text-sm font-medium text-fg">{c.title}</div>
                 <p className="mb-2 text-xs text-muted">{c.explanation}</p>
                 <img
                   src={`data:image/png;base64,${c.image_base64}`}
@@ -196,12 +210,12 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           {paper.pdf_url ? (
             <div className="card">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-[#0b0b0e]">Read Paper</h2>
+                <h2 className="text-sm font-semibold text-fg">Read Paper</h2>
                 <a
                   href={paper.pdf_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="chip hover:text-[#0b0b0e]"
+                  className="chip hover:text-fg"
                 >
                   open in new tab ↗
                 </a>
@@ -226,7 +240,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           ) : null}
 
           <div className="card">
-            <h2 className="mb-2 text-sm font-semibold text-[#0b0b0e]">Notes</h2>
+            <h2 className="mb-2 text-sm font-semibold text-fg">Notes</h2>
             <div className="space-y-2">
               {notes.map((n) => (
                 <NoteRow key={n.id} note={n} onChange={load} />
@@ -252,7 +266,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
 
         <aside className="space-y-3">
           <div className="card">
-            <h2 className="mb-2 text-sm font-semibold text-[#0b0b0e]">Related</h2>
+            <h2 className="mb-2 text-sm font-semibold text-fg">Related</h2>
             {related.length === 0 ? (
               <div className="text-xs text-muted">
                 Add more papers to see related work.
@@ -263,9 +277,9 @@ export default function PaperPage({ params }: { params: { id: string } }) {
                   <li key={r.id}>
                     <Link
                       href={`/papers/${r.id}`}
-                      className="block text-sm text-[#0b0b0e] hover:underline"
+                      className="block text-sm text-fg hover:underline"
                     >
-                      {stripHtml(r.title)}
+                      {r.title}
                     </Link>
                     <div className="text-xs text-muted">
                       {(r.authors ?? []).slice(0, 2).join(", ")}
@@ -284,6 +298,23 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           >
             Ask the assistant about this paper
           </Link>
+
+          <div className="card space-y-2">
+            <div className="text-xs font-medium text-fg">Re-index paper</div>
+            <p className="text-xs text-muted">
+              If the assistant says it has no context, re-indexing rebuilds the searchable snippets.
+            </p>
+            <button
+              onClick={rechunk}
+              disabled={rechunking}
+              className="btn w-full py-1.5 text-xs disabled:opacity-50"
+            >
+              {rechunking ? "Indexing…" : "Re-index snippets"}
+            </button>
+            {rechunkMsg && (
+              <p className="text-xs text-muted">{rechunkMsg}</p>
+            )}
+          </div>
         </aside>
       </div>
     </Shell>
@@ -323,7 +354,7 @@ function NoteRow({ note, onChange }: { note: any; onChange: () => void }) {
             className="input"
           />
           <div className="mt-1 flex gap-1">
-            <button onClick={save} className="chip hover:text-[#0b0b0e]">
+            <button onClick={save} className="chip hover:text-fg">
               save
             </button>
             <button onClick={() => setEditing(false)} className="chip">
@@ -335,7 +366,7 @@ function NoteRow({ note, onChange }: { note: any; onChange: () => void }) {
         <>
           <div className="whitespace-pre-wrap text-muted/90">{note.content}</div>
           <div className="mt-1 flex gap-1 text-xs">
-            <button onClick={() => setEditing(true)} className="chip hover:text-[#0b0b0e]">
+            <button onClick={() => setEditing(true)} className="chip hover:text-fg">
               edit
             </button>
             <button onClick={del} className="chip hover:border-red-400 hover:text-red-300">

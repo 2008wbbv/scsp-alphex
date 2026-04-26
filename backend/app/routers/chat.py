@@ -44,22 +44,54 @@ def _format_citations(matches: list[dict], papers_by_id: dict[str, dict]) -> tup
 def chat(body: ChatIn, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
     matches: list[dict] = []
+
     try:
         embedding = embed_query(body.message)
-        try:
-            matches = sb.rpc(
-                "match_chunks",
-                {
-                    "query_embedding": embedding,
-                    "match_user": user.id,
-                    "match_count": body.k,
-                    "filter_paper": body.paper_id,
-                },
-            ).execute().data or []
-        except Exception:
-            matches = []
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding service error: {exc}") from exc
+
+    try:
+        matches = sb.rpc(
+            "match_chunks",
+            {
+                "query_embedding": embedding,
+                "match_user": user.id,
+                "match_count": body.k,
+                "filter_paper": body.paper_id,
+            },
+        ).execute().data or []
     except Exception:
         matches = []
+
+    # Fallback when vector search returns nothing.
+    if not matches:
+        try:
+            q = (
+                sb.table("chunks")
+                .select("id,paper_id,content,chunk_index,page")
+                .eq("user_id", user.id)
+            )
+            if body.paper_id:
+                # Scoped to one paper — return all its chunks.
+                q = q.eq("paper_id", body.paper_id).order("chunk_index").limit(body.k)
+            else:
+                # Library-wide — keyword fallback.
+                q = q.ilike("content", f"%{body.message[:80]}%").limit(body.k)
+
+            rows = q.execute().data or []
+            matches = [
+                {
+                    "chunk_id": r["id"],
+                    "paper_id": r["paper_id"],
+                    "content": r["content"],
+                    "chunk_index": r["chunk_index"],
+                    "page": r.get("page"),
+                    "similarity": 0.0,
+                }
+                for r in rows
+            ]
+        except Exception:
+            pass
 
     paper_ids = list({m["paper_id"] for m in matches})
     papers = []

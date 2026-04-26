@@ -203,6 +203,15 @@ export const api = {
     return handle<{ image_base64: string; code: string }>(res);
   },
 
+  async rechunkPaper(paperId: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/papers/${paperId}/rechunk`, {
+      method: "POST",
+      headers,
+    });
+    return handle<{ ok: boolean; n_chunks: number }>(res);
+  },
+
   async chartsFromPaper(paperId: string) {
     const headers = await authHeaders();
     const res = await safeFetch(`${API_URL}/graph/paper/${paperId}`, {

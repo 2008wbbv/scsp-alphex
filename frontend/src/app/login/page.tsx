@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, BookOpen, MessageSquare, Search, Network, BarChart3 } from "lucide-react";
+import { Mail, ArrowRight } from "lucide-react";
 
 import { supabaseBrowser } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
 
 function GoogleIcon() {
   return (
@@ -18,32 +17,12 @@ function GoogleIcon() {
   );
 }
 
-const FEATURES = [
-  {
-    icon: BookOpen,
-    title: "Paper library",
-    desc: "Import from arXiv, DOI, or upload PDFs. Everything in one place.",
-  },
-  {
-    icon: Search,
-    title: "Semantic search",
-    desc: "Find relevant passages across your entire library using natural language.",
-  },
-  {
-    icon: MessageSquare,
-    title: "Grounded assistant",
-    desc: "Ask questions and get answers cited directly from your papers.",
-  },
-  {
-    icon: BarChart3,
-    title: "Data visualizations",
-    desc: "Auto-extract quantitative findings and generate charts from any paper.",
-  },
-  {
-    icon: Network,
-    title: "Similarity graph",
-    desc: "See how your papers relate to each other through vector embeddings.",
-  },
+const CAPABILITIES = [
+  "Semantic search across every passage",
+  "Grounded assistant with inline citations",
+  "Auto-extract charts from quantitative findings",
+  "Similarity graph across your entire library",
+  "One-click LaTeX export with bibliography",
 ];
 
 export default function LoginPage() {
@@ -55,18 +34,18 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const sb = supabaseBrowser();
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace("/library");
-    });
+    supabaseBrowser()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (data.session) router.replace("/library");
+      });
   }, [router]);
 
   async function signInGoogle() {
     setLoading("google");
     setError(null);
     try {
-      const sb = supabaseBrowser();
-      await sb.auth.signInWithOAuth({
+      await supabaseBrowser().auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
@@ -100,121 +79,158 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen bg-ink">
-      {/* Left panel — feature showcase */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-xl font-bold text-white">
-            α
+      {/* ── Left panel: hero ─────────────────────────────────── */}
+      <div className="hero-grid relative hidden overflow-hidden lg:flex lg:w-[55%] flex-col justify-between p-14 border-r border-border">
+        {/* Radial glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-32 -top-32 h-[600px] w-[600px] rounded-full"
+          style={{
+            background:
+              "radial-gradient(circle, rgba(124,92,255,0.12) 0%, transparent 70%)",
+          }}
+        />
+
+        {/* Logo */}
+        <div className="relative flex items-center gap-2.5 select-none">
+          <div className="flex items-baseline leading-none">
+            <span className="font-serif italic text-[1.9rem] text-fg">α</span>
+            <span className="font-sans font-bold text-[1.3rem] text-fg -ml-[1px]">x</span>
           </div>
-          <span className="text-lg font-semibold text-[#0b0b0e]">Alphex</span>
+          <span className="text-base font-semibold text-fg">Alphex</span>
         </div>
 
-        <div className="space-y-8">
+        {/* Hero headline */}
+        <div className="relative space-y-6">
           <div>
-            <h1 className="text-4xl font-bold text-[#0b0b0e] leading-tight">
-              Research at the<br />speed of thought.
+            <p className="mb-3 text-xs font-medium uppercase tracking-widest text-muted">
+              AI research platform
+            </p>
+            {/* The editorial pairing: Geist structure + Instrument Serif italic accent */}
+            <h1 className="text-[4.5rem] font-semibold leading-[1.05] tracking-tight text-fg">
+              research,
+              <br />
+              <em className="font-serif not-italic italic text-accent2">
+                accelerated.
+              </em>
             </h1>
-            <p className="mt-4 text-muted text-base">
-              Import papers, search semantically, and let an AI assistant grounded in your library answer your questions.
+            <p className="mt-6 max-w-sm text-base leading-relaxed text-muted">
+              Import any paper. Ask anything. Publish faster.
             </p>
           </div>
 
-          <ul className="space-y-5">
-            {FEATURES.map((f) => (
-              <li key={f.title} className="flex items-start gap-4">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent/10">
-                  <f.icon size={16} className="text-accent" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-[#0b0b0e]">{f.title}</div>
-                  <div className="text-xs text-muted">{f.desc}</div>
-                </div>
+          {/* Capability list */}
+          <ul className="space-y-2.5">
+            {CAPABILITIES.map((c) => (
+              <li key={c} className="flex items-start gap-3 text-sm text-muted">
+                <ArrowRight
+                  size={14}
+                  className="mt-0.5 shrink-0 text-accent/60"
+                />
+                {c}
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="text-xs text-muted">
-          Hackathon demo. Data stored in Supabase.
-        </div>
+        <p className="relative text-xs text-muted/50">
+          Powered by Claude + OpenAI embeddings + pgvector
+        </p>
       </div>
 
-      {/* Right panel — auth form */}
+      {/* ── Right panel: auth form ───────────────────────────── */}
       <div className="flex flex-1 items-center justify-center p-8">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-[340px]">
           {/* Mobile logo */}
-          <div className="mb-8 flex flex-col items-center lg:hidden">
-            <div className="grid h-12 w-12 place-items-center rounded-lg bg-accent text-2xl font-bold text-white">
-              α
+          <div className="mb-8 flex flex-col items-center lg:hidden select-none">
+            <div className="flex items-baseline leading-none">
+              <span className="font-serif italic text-[3.5rem] text-fg">α</span>
+              <span className="font-sans font-bold text-[2.4rem] text-fg -ml-[2px]">x</span>
             </div>
-            <div className="mt-2 text-xl font-semibold text-[#0b0b0e]">Alphex</div>
+            <p className="mt-2 text-sm text-muted">
+              research, <em className="font-serif italic not-italic text-accent2">accelerated.</em>
+            </p>
           </div>
 
-          <h2 className="text-xl font-semibold text-[#0b0b0e]">
-            {mode === "signin" ? "Welcome back" : "Create your account"}
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            {mode === "signin" ? "Sign in to your research workspace." : "Start building your paper library."}
-          </p>
+          {/* Heading */}
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-fg">
+              {mode === "signin" ? "Welcome back" : "Create account"}
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              {mode === "signin"
+                ? "Sign in to your research workspace."
+                : "Start building your paper library."}
+            </p>
+          </div>
 
-          <div className="mt-6 space-y-3">
-            <Button
+          <div className="space-y-3">
+            {/* Google */}
+            <button
               type="button"
-              variant="outline"
-              className="w-full gap-3"
               disabled={loading !== null}
               onClick={signInGoogle}
+              className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-panel px-4 py-2.5 text-sm font-medium text-fg transition-all hover:bg-panel2 disabled:opacity-50"
             >
               <GoogleIcon />
               {loading === "google" ? "Redirecting…" : "Continue with Google"}
-            </Button>
+            </button>
 
             <div className="flex items-center gap-3 text-xs text-muted">
               <div className="h-px flex-1 bg-border" />
-              or
+              or continue with email
               <div className="h-px flex-1 bg-border" />
             </div>
 
-            <form onSubmit={submitEmail} className="space-y-3">
+            {/* Email/password */}
+            <form onSubmit={submitEmail} className="space-y-2.5">
               <input
                 type="email"
-                className="input w-full"
-                placeholder="Email"
+                className="input"
+                placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
               <input
                 type="password"
-                className="input w-full"
+                className="input"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              <Button
+              <button
                 type="submit"
-                variant="outline"
-                className="w-full gap-3"
                 disabled={loading !== null}
+                className="btn btn-primary w-full py-2.5"
               >
-                <Mail size={16} />
+                <Mail size={15} />
                 {loading === "email"
                   ? "Please wait…"
                   : mode === "signup"
                   ? "Create account"
                   : "Sign in"}
-              </Button>
+              </button>
             </form>
 
-            {error && <div className="text-xs text-red-300">{error}</div>}
+            {error && (
+              <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {error}
+              </p>
+            )}
 
             <button
               type="button"
-              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
-              className="w-full text-center text-xs text-muted hover:text-[#0b0b0e]"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                setError(null);
+              }}
+              className="w-full text-center text-xs text-muted transition-colors hover:text-fg"
             >
-              {mode === "signin" ? "No account? Create one" : "Already have an account? Sign in"}
+              {mode === "signin"
+                ? "No account? Create one →"
+                : "Already have an account? Sign in →"}
             </button>
           </div>
         </div>

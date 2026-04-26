@@ -6,7 +6,6 @@ import { Search } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
-import { stripHtml } from "@/lib/utils";
 
 export default function SearchPage() {
   const [q, setQ] = useState("");
@@ -37,9 +36,11 @@ export default function SearchPage() {
     <Shell>
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         <header>
-          <h1 className="text-2xl font-semibold text-[#0b0b0e]">Semantic search</h1>
+          <h1 className="text-2xl font-semibold text-fg">
+            Semantic search
+          </h1>
           <p className="mt-0.5 text-sm text-muted">
-            Searches every passage in your library using cosine similarity on text-embedding-3-small.
+            Every passage in your library — cosine similarity on text-embedding-3-small.
           </p>
         </header>
 
@@ -80,9 +81,9 @@ export default function SearchPage() {
                 <div className="flex items-start justify-between gap-3">
                   <Link
                     href={`/papers/${r.paper_id}`}
-                    className="text-sm font-medium text-[#0b0b0e] group-hover:text-accent2 transition-colors hover:underline"
+                    className="text-sm font-medium text-fg group-hover:text-accent2 transition-colors hover:underline"
                   >
-                    {stripHtml(r.paper?.title ?? "Untitled")}
+                    {r.paper?.title ?? "Untitled"}
                   </Link>
                   {pct !== null && (
                     <div className="flex shrink-0 items-center gap-2">
@@ -118,7 +119,7 @@ export default function SearchPage() {
           {!busy && searched && results.length === 0 && (
             <div className="rounded-lg border border-dashed border-border bg-panel/40 py-12 text-center">
               <Search size={28} className="mx-auto mb-3 text-muted/30" />
-              <div className="text-sm font-medium text-[#0b0b0e]">No results found</div>
+              <div className="text-sm font-medium text-fg">No results found</div>
               <div className="mt-1 text-xs text-muted">
                 Try rephrasing your query or adding more papers to your library
               </div>

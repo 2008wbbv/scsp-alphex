@@ -86,8 +86,8 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
             onClick={() => { setTab(key); setError(null); }}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors ${
               tab === key
-                ? "border-b-2 border-accent text-[#0b0b0e] -mb-px"
-                : "text-muted hover:text-[#0b0b0e]"
+                ? "border-b-2 border-accent text-fg -mb-px"
+                : "text-muted hover:text-fg"
             }`}
           >
             <Icon size={13} />
@@ -156,7 +156,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
         )}
 
         {(error || success) && (
-          <p className={`mt-2 text-xs ${error ? "text-red-300" : "text-emerald-400"}`}>
+          <p className={`mt-2 text-xs ${error ? "text-red-400" : "text-fg"}`}>
             {error ?? success}
           </p>
         )}

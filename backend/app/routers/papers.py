@@ -1,8 +1,13 @@
+import requests as _req
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
+from ..services.chunking import Chunk, chunk_pages
+from ..services.embeddings import embed_texts
+from ..services.pdf import parse_pdf
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 
@@ -155,6 +160,91 @@ def delete_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
     sb.table("papers").delete().eq("id", paper_id).eq("user_id", user.id).execute()
     return {"ok": True}
+
+
+@router.post("/{paper_id}/rechunk")
+def rechunk_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
+    """Re-download and re-embed a paper's text. Replaces any existing chunks."""
+    sb = get_supabase()
+    paper = (
+        sb.table("papers")
+        .select("id,title,abstract,source_type,source_url,storage_path")
+        .eq("id", paper_id)
+        .eq("user_id", user.id)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    pdf_bytes: bytes | None = None
+
+    # Try Supabase Storage first (uploaded PDFs and arXiv).
+    if paper.get("storage_path"):
+        try:
+            signed = sb.storage.from_("papers").create_signed_url(paper["storage_path"], 300)
+            url = signed.get("signedURL") or signed.get("signedUrl") or signed.get("signed_url")
+            if url:
+                r = _req.get(url, timeout=30)
+                r.raise_for_status()
+                pdf_bytes = r.content
+        except Exception:
+            pdf_bytes = None
+
+    # Fall back: re-download arXiv PDF from source URL.
+    if not pdf_bytes and paper.get("source_type") == "arxiv" and paper.get("source_url"):
+        src = paper["source_url"]
+        pdf_url = src.replace("/abs/", "/pdf/") if "/abs/" in src else src
+        try:
+            r = _req.get(pdf_url, timeout=30, headers={"User-Agent": "Alphex/1.0"})
+            r.raise_for_status()
+            pdf_bytes = r.content
+        except Exception:
+            pdf_bytes = None
+
+    chunks: list[Chunk] = []
+
+    if pdf_bytes:
+        try:
+            parsed = parse_pdf(pdf_bytes)
+            chunks = chunk_pages(parsed)
+        except Exception:
+            chunks = []
+
+    # If no PDF text, fall back to abstract.
+    if not chunks:
+        fallback = "\n\n".join(filter(None, [paper.get("abstract"), paper.get("title")]))
+        if fallback.strip():
+            chunks = [Chunk(content=fallback.strip(), chunk_index=0, page=None)]
+
+    if not chunks:
+        raise HTTPException(status_code=422, detail="No text could be extracted from this paper.")
+
+    # Delete existing chunks then re-insert.
+    sb.table("chunks").delete().eq("paper_id", paper_id).eq("user_id", user.id).execute()
+
+    rows = []
+    for i in range(0, len(chunks), 64):
+        batch = chunks[i : i + 64]
+        try:
+            vectors = embed_texts([c.content for c in batch])
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Embedding failed: {exc}") from exc
+        for c, v in zip(batch, vectors):
+            rows.append({
+                "paper_id": paper_id,
+                "user_id": user.id,
+                "content": c.content,
+                "embedding": v,
+                "chunk_index": c.chunk_index,
+                "page": c.page,
+            })
+
+    for i in range(0, len(rows), 200):
+        sb.table("chunks").insert(rows[i : i + 200]).execute()
+
+    return {"ok": True, "n_chunks": len(rows)}
 
 
 @router.post("/{paper_id}/tags")

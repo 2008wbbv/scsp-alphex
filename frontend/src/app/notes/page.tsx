@@ -87,7 +87,9 @@ export default function NotesPage() {
     <Shell>
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         <header>
-          <h1 className="text-2xl font-semibold text-[#0b0b0e]">Notes</h1>
+          <h1 className="text-2xl font-semibold text-fg">
+            Notes
+          </h1>
           <p className="mt-0.5 text-sm text-muted">
             Free-form notes. Link to a paper for auto-populated citations on LaTeX export.
           </p>
@@ -143,7 +145,7 @@ export default function NotesPage() {
           <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-panel/40 py-14 text-center">
             <FileText size={28} className="text-muted/30" />
             <div>
-              <div className="text-sm font-medium text-[#0b0b0e]">No notes yet</div>
+              <div className="text-sm font-medium text-fg">No notes yet</div>
               <div className="mt-0.5 text-xs text-muted">Write your first note above</div>
             </div>
           </div>
@@ -154,13 +156,13 @@ export default function NotesPage() {
               return (
                 <div key={n.id} className="group rounded-lg border border-border bg-panel p-4 transition-all hover:border-border/60 animate-fade-up">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="text-sm font-medium text-[#0b0b0e]">
+                    <div className="text-sm font-medium text-fg">
                       {n.title || "Untitled note"}
                     </div>
                     <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => exportTex(n)}
-                        className="chip hover:text-[#0b0b0e] hover:border-border/60"
+                        className="chip hover:text-fg hover:border-border/60"
                       >
                         .tex
                       </button>

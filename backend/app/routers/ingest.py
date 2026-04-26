@@ -5,7 +5,7 @@ from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
 from ..services import arxiv as arxiv_svc
 from ..services import doi as doi_svc
-from ..services.chunking import chunk_pages
+from ..services.chunking import Chunk, chunk_pages
 from ..services.claude import summarize_paper
 from ..services.embeddings import embed_texts
 from ..services.pdf import parse_pdf
@@ -81,6 +81,14 @@ def _persist(
         pass
 
     chunks = chunk_pages(parsed)
+
+    # If the PDF yielded no text (scanned/locked), fall back to abstract + title
+    # so the paper is still reachable by the chat and search pipelines.
+    if not chunks:
+        fallback = "\n\n".join(filter(None, [abstract, final_title]))
+        if fallback.strip():
+            chunks = [Chunk(content=fallback.strip(), chunk_index=0, page=None)]
+
     if chunks:
         # Embed in batches of 64.
         rows = []
@@ -192,34 +200,39 @@ def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
     paper = result.data[0]
     paper_id = paper["id"]
 
-    # Store abstract as a searchable chunk so chat/search/charts work.
+    # Chunk the abstract (and title) so this paper is reachable by chat/search.
     n_chunks = 0
-    text = "\n\n".join(filter(None, [meta.abstract]))
+    text = "\n\n".join(filter(None, [meta.title, meta.abstract]))
     if text.strip():
         try:
-            vectors = embed_texts([text])
-            sb.table("chunks").insert({
-                "paper_id": paper_id,
-                "user_id": user.id,
-                "content": text,
-                "embedding": vectors[0],
-                "chunk_index": 0,
-                "page": None,
-            }).execute()
-            n_chunks = 1
-        except Exception:
-            # Embedding unavailable — store chunk without vector so text is still accessible.
-            try:
-                sb.table("chunks").insert({
+            # Split into overlapping chunks so long abstracts are properly indexed.
+            raw_chunks: list[str] = []
+            target = 1400
+            overlap = 200
+            cleaned = " ".join(text.split())
+            start = 0
+            while start < len(cleaned):
+                end = min(start + target, len(cleaned))
+                raw_chunks.append(cleaned[start:end])
+                if end >= len(cleaned):
+                    break
+                start = max(end - overlap, start + 1)
+
+            vectors = embed_texts(raw_chunks)
+            rows = [
+                {
                     "paper_id": paper_id,
                     "user_id": user.id,
-                    "content": text,
-                    "embedding": None,
-                    "chunk_index": 0,
+                    "content": chunk,
+                    "embedding": vec,
+                    "chunk_index": i,
                     "page": None,
-                }).execute()
-                n_chunks = 1
-            except Exception:
-                pass
+                }
+                for i, (chunk, vec) in enumerate(zip(raw_chunks, vectors))
+            ]
+            sb.table("chunks").insert(rows).execute()
+            n_chunks = len(rows)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Embedding failed: {exc}") from exc
 
     return {**paper, "n_chunks": n_chunks}

@@ -118,6 +118,7 @@ as $$
         1 - (c.embedding <=> query_embedding) as similarity
     from chunks c
     where c.user_id = match_user
+      and c.embedding is not null
       and (filter_paper is null or c.paper_id = filter_paper)
     order by c.embedding <=> query_embedding
     limit match_count;
