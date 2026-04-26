@@ -1,3 +1,4 @@
+import html as _html
 import re
 from dataclasses import dataclass
 
@@ -5,8 +6,11 @@ import httpx
 
 
 def _strip_jats(text: str) -> str:
-    """Remove JATS/XML tags like <jats:p>, <jats:title> etc."""
-    return re.sub(r"<[^>]+>", " ", text or "").strip()
+    """Remove JATS/XML tags and HTML entities from abstract text."""
+    if not text:
+        return ""
+    text = _html.unescape(text)
+    return re.sub(r"<[^>]+>", " ", text).strip()
 
 
 @dataclass

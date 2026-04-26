@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .routers import chat, graph, ingest, latex, notes, papers, search
+from .routers import chat, forge, graph, ingest, latex, notes, papers, search
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(notes.router)
     app.include_router(graph.router)
     app.include_router(latex.router)
+    app.include_router(forge.router)
 
     @app.get("/")
     def root():

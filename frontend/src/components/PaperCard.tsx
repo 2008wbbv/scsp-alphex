@@ -130,17 +130,30 @@ export default function PaperCard({
 
         {/* Footer */}
         <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-          <select
-            value={status}
-            onChange={(e) => updateStatus(e.target.value as Status)}
-            className={`rounded-full border border-border bg-panel2 px-2.5 py-1 text-[11px] font-medium focus:outline-none transition-colors focus:ring-0 ${STATUS_LABEL[status]}`}
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s} className="text-white bg-panel2">
-                {s}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={status}
+              onChange={(e) => updateStatus(e.target.value as Status)}
+              className={`appearance-none rounded-full border border-border bg-panel2 pl-2.5 pr-6 py-1 text-[11px] font-medium focus:outline-none transition-colors focus:ring-0 ${STATUS_LABEL[status]}`}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M2 4l4 4 4-4" />
+            </svg>
+          </div>
           <div className="flex gap-1">
             {paper.source_url && (
               <a

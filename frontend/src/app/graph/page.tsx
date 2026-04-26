@@ -197,7 +197,7 @@ function FigureLibrary({ paper }: { paper: any }) {
     setLoading(true);
     setError(null);
     try {
-      const { charts } = await api.chartsFromPaper(paper.id);
+      const { charts } = await api.chartsFromPaper(paper.id) as { charts: any[] };
       setCharts(charts);
       setGenerated(true);
     } catch (e: any) {
@@ -233,6 +233,11 @@ function FigureLibrary({ paper }: { paper: any }) {
             <div key={i} className="card space-y-2">
               <div className="text-sm font-medium text-fg">{c.title}</div>
               <p className="text-xs text-muted">{c.explanation}</p>
+              {c.sources && (
+                <p className="text-[11px] text-muted/70 italic">
+                  Source: {c.sources}
+                </p>
+              )}
               <img
                 src={`data:image/png;base64,${c.image_base64}`}
                 alt={c.title}

@@ -154,6 +154,23 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
+-- forge_drafts — Forge research drafting tool
+-- ---------------------------------------------------------------------
+create table if not exists forge_drafts (
+    id           uuid primary key default uuid_generate_v4(),
+    user_id      uuid not null references auth.users(id) on delete cascade,
+    title        text not null default 'Untitled Draft',
+    notes        text,
+    sections     jsonb not null default '[]'::jsonb,
+    share_token  text unique,
+    created_at   timestamptz not null default now(),
+    updated_at   timestamptz not null default now()
+);
+
+create index if not exists forge_drafts_user_idx on forge_drafts(user_id, created_at desc);
+create index if not exists forge_drafts_token_idx on forge_drafts(share_token) where share_token is not null;
+
+-- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------
 alter table papers         enable row level security;
@@ -181,6 +198,16 @@ create policy "tags_owner" on tags
 drop policy if exists "chat_owner" on chat_messages;
 create policy "chat_owner" on chat_messages
     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+alter table forge_drafts enable row level security;
+
+drop policy if exists "forge_owner" on forge_drafts;
+create policy "forge_owner" on forge_drafts
+    for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "forge_shared_view" on forge_drafts;
+create policy "forge_shared_view" on forge_drafts
+    for select using (share_token is not null);
 
 -- ---------------------------------------------------------------------
 -- Storage bucket for raw PDFs

@@ -150,7 +150,7 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
 
     chunks = (
         sb.table("chunks")
-        .select("content")
+        .select("content,chunk_index,page")
         .eq("paper_id", paper_id)
         .order("chunk_index")
         .execute()
@@ -163,7 +163,7 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
         _build_chunks(sb, paper_id, user.id, paper)
         chunks = (
             sb.table("chunks")
-            .select("content")
+            .select("content,chunk_index,page")
             .eq("paper_id", paper_id)
             .order("chunk_index")
             .execute()
@@ -174,9 +174,8 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     if not chunks:
         raise HTTPException(status_code=422, detail="No text could be extracted from this paper.")
 
-    texts = [c["content"] for c in chunks]
     try:
-        chart_specs = analyze_paper_for_charts(paper["title"], texts)
+        chart_specs = analyze_paper_for_charts(paper["title"], chunks)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"LLM error: {exc}") from exc
 
@@ -187,6 +186,7 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
             results.append({
                 "title": spec["title"],
                 "explanation": spec["explanation"],
+                "sources": spec.get("sources", ""),
                 "image_base64": base64.b64encode(png).decode("ascii"),
                 "code": spec["code"],
             })

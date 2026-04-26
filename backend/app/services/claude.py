@@ -96,13 +96,14 @@ GRAPH_SYSTEM = (
 
 PAPER_CHART_SYSTEM = """You are a data visualization expert analyzing academic papers.
 
-Given paper chunks, identify 2-3 distinct quantitative findings, comparisons, or trends and write a matplotlib script for each.
+Given numbered paper chunks, identify 2-3 distinct quantitative findings, comparisons, or trends and write a matplotlib script for each.
 
 Return EXACTLY this format (no markdown, no extra text):
 
 CHART_START
 TITLE: <short chart title>
 EXPLANATION: <1-2 sentences: what this shows and the key insight>
+SOURCES: <comma-separated chunk labels where you found the data, e.g. "Chunk 2, Chunk 5">
 CODE:
 <python code>
 CHART_END
@@ -118,13 +119,21 @@ Rules for each CODE block:
 - Include meaningful axis labels and a legend if needed"""
 
 
-def analyze_paper_for_charts(title: str, chunks: list[str]) -> list[dict]:
-    """Return a list of {title, explanation, code} dicts from paper content."""
-    context = "\n\n---\n\n".join(chunks[:20])  # cap to avoid token overflow
+def analyze_paper_for_charts(title: str, chunks: list[dict]) -> list[dict]:
+    """Return a list of {title, explanation, sources, code} dicts from paper content.
+
+    chunks: list of {content, chunk_index, page} dicts
+    """
+    labeled = []
+    for i, c in enumerate(chunks[:20]):
+        page_str = f" (p.{c['page']})" if c.get("page") else ""
+        labeled.append(f"[Chunk {i + 1}{page_str}]\n{c['content']}")
+    context = "\n\n---\n\n".join(labeled)
     user = (
         f"Paper: {title}\n\n"
         f"Excerpts:\n{context}\n\n"
-        "Generate 2-3 charts based on quantitative data or comparisons in this paper."
+        "Generate 2-3 charts based on quantitative data or comparisons in this paper. "
+        "Cite the chunk label(s) where you found each dataset."
     )
     raw = complete(
         system=PAPER_CHART_SYSTEM,
@@ -142,11 +151,14 @@ def analyze_paper_for_charts(title: str, chunks: list[str]) -> list[dict]:
         try:
             title_line = next(l for l in block.splitlines() if l.startswith("TITLE:"))
             exp_line = next(l for l in block.splitlines() if l.startswith("EXPLANATION:"))
+            src_lines = [l for l in block.splitlines() if l.startswith("SOURCES:")]
+            sources = src_lines[0].replace("SOURCES:", "").strip() if src_lines else ""
             code_start = block.index("CODE:") + len("CODE:")
             code = block[code_start:].strip()
             charts.append({
                 "title": title_line.replace("TITLE:", "").strip(),
                 "explanation": exp_line.replace("EXPLANATION:", "").strip(),
+                "sources": sources,
                 "code": code,
             })
         except (StopIteration, ValueError):
@@ -212,6 +224,80 @@ def generate_tags(title: str, abstract: str) -> list[str]:
         return [t.strip().lower() for t in raw.splitlines() if t.strip()][:7]
     except Exception:
         return []
+
+
+FORGE_SYSTEM = """You are a research writing assistant. Given raw notes and data, generate a structured research draft.
+
+Return EXACTLY this format (no markdown, no extra text):
+
+SECTION_START
+TYPE: heading
+CONTENT: <section heading text>
+SECTION_END
+
+SECTION_START
+TYPE: text
+CONTENT: <paragraph text — cite sources inline as [Source N] if paper excerpts were provided>
+SECTION_END
+
+SECTION_START
+TYPE: chart_spec
+CONTENT: <chart title>
+DETAIL: <1-sentence explanation of what to chart>
+DATA_HINT: <brief description of the data for the chart, e.g. "accuracy: GPT-4=94%, Claude=92%, Gemini=89%">
+SECTION_END
+
+Rules:
+- Generate 4-8 sections total: one main heading, 3-5 text paragraphs, 1-2 chart_spec sections
+- chart_spec sections describe charts; the caller will generate actual Python/matplotlib code from them
+- Text must be grounded in the notes provided; do not invent results not present in the input
+- Inline citations like [Source 1] refer to the numbered paper excerpts provided"""
+
+
+def generate_forge_draft(title: str, notes: str, paper_contexts: list[str]) -> list[dict]:
+    """Generate structured draft sections from user notes and paper context."""
+    import uuid as _uuid
+    ctx = ""
+    if paper_contexts:
+        ctx = "\n\nPaper excerpts for context:\n" + "\n\n".join(
+            f"[Source {i + 1}]\n{c[:800]}" for i, c in enumerate(paper_contexts[:6])
+        )
+    user = (
+        f"Draft title: {title or 'Untitled'}\n\n"
+        f"My notes and data:\n{notes}\n"
+        f"{ctx}\n\n"
+        "Generate a structured draft based on these notes."
+    )
+    raw = complete(
+        system=FORGE_SYSTEM,
+        messages=[{"role": "user", "content": user}],
+        max_tokens=2500,
+        temperature=0.3,
+    )
+
+    sections: list[dict] = []
+    for block in raw.split("SECTION_START"):
+        block = block.strip()
+        if "SECTION_END" not in block:
+            continue
+        block = block[:block.index("SECTION_END")].strip()
+        lines = block.splitlines()
+        fields: dict[str, str] = {}
+        for line in lines:
+            for key in ("TYPE", "CONTENT", "DETAIL", "DATA_HINT"):
+                if line.startswith(f"{key}:"):
+                    fields[key.lower()] = line[len(key) + 1:].strip()
+        if not fields.get("type") or not fields.get("content"):
+            continue
+        sections.append({
+            "id": str(_uuid.uuid4()),
+            "type": fields["type"],
+            "content": fields["content"],
+            "detail": fields.get("detail", ""),
+            "data_hint": fields.get("data_hint", ""),
+            "comment": "",
+        })
+    return sections
 
 
 def generate_chart_code(description: str) -> str:

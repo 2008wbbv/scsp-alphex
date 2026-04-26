@@ -227,6 +227,55 @@ export const api = {
     return handle<{ charts: { title: string; explanation: string; image_base64: string; code: string }[] }>(res);
   },
 
+  async createForgeDraft(payload: { title: string; notes: string; paper_ids?: string[] }) {
+    const headers = await authHeaders({ "Content-Type": "application/json" });
+    const res = await safeFetch(`${API_URL}/forge/draft`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return handle<any>(res);
+  },
+
+  async listForgeDrafts() {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/forge/drafts`, { headers, cache: "no-store" });
+    return handle<{ drafts: any[] }>(res);
+  },
+
+  async getForgeDraft(id: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/forge/drafts/${id}`, { headers, cache: "no-store" });
+    return handle<any>(res);
+  },
+
+  async updateForgeDraft(id: string, payload: { sections: any[]; title?: string }) {
+    const headers = await authHeaders({ "Content-Type": "application/json" });
+    const res = await safeFetch(`${API_URL}/forge/drafts/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return handle<any>(res);
+  },
+
+  async deleteForgeDraft(id: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/forge/drafts/${id}`, { method: "DELETE", headers });
+    return handle<any>(res);
+  },
+
+  async shareForgeDraft(id: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/forge/drafts/${id}/share`, { method: "POST", headers });
+    return handle<{ share_token: string }>(res);
+  },
+
+  async getSharedDraft(token: string) {
+    const res = await safeFetch(`${API_URL}/forge/shared/${token}`);
+    return handle<any>(res);
+  },
+
   async exportLatex(payload: {
     title?: string;
     body: string;
