@@ -94,8 +94,8 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="relative flex items-center gap-2.5 select-none">
           <div className="flex items-baseline leading-none">
-            <span className="font-serif italic text-[1.9rem] text-fg">α</span>
-            <span className="font-sans font-bold text-[1.3rem] text-fg -ml-[1px]">x</span>
+            <span className="font-bold text-[1.9rem] text-fg">α</span>
+            <span className="font-bold text-[1.3rem] text-fg -ml-[1px]">x</span>
           </div>
           <span className="text-base font-semibold text-fg">Alphex</span>
         </div>
@@ -110,9 +110,7 @@ export default function LoginPage() {
             <h1 className="text-[4.5rem] font-semibold leading-[1.05] tracking-tight text-fg">
               research,
               <br />
-              <em className="font-serif not-italic italic text-accent2">
-                accelerated.
-              </em>
+              accelerated.
             </h1>
             <p className="mt-6 max-w-sm text-base leading-relaxed text-muted">
               Import any paper. Ask anything. Publish faster.
@@ -144,11 +142,11 @@ export default function LoginPage() {
           {/* Mobile logo */}
           <div className="mb-8 flex flex-col items-center lg:hidden select-none">
             <div className="flex items-baseline leading-none">
-              <span className="font-serif italic text-[3.5rem] text-fg">α</span>
-              <span className="font-sans font-bold text-[2.4rem] text-fg -ml-[2px]">x</span>
+              <span className="font-bold text-[3.5rem] text-fg">α</span>
+              <span className="font-bold text-[2.4rem] text-fg -ml-[2px]">x</span>
             </div>
             <p className="mt-2 text-sm text-muted">
-              research, <em className="font-serif italic not-italic text-accent2">accelerated.</em>
+              research, accelerated.
             </p>
           </div>
 

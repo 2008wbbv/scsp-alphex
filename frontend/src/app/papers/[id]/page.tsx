@@ -292,11 +292,12 @@ export default function PaperPage({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          <Link
-            href={`/chat?paper=${paper.id}`}
-            className="btn w-full justify-center"
-          >
+          <Link href={`/chat?paper=${paper.id}`} className="btn w-full justify-center">
             Ask the assistant about this paper
+          </Link>
+
+          <Link href={`/papers/${paper.id}/annotate`} className="btn w-full justify-center">
+            View with AI annotations
           </Link>
 
           <div className="card space-y-2">

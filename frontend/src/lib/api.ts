@@ -203,6 +203,12 @@ export const api = {
     return handle<{ image_base64: string; code: string }>(res);
   },
 
+  async getAnnotations(paperId: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/papers/${paperId}/annotate`, { headers });
+    return handle<{ chunks: { content: string; page: number | null; chunk_index: number }[]; terms: { term: string; definition: string }[] }>(res);
+  },
+
   async rechunkPaper(paperId: string) {
     const headers = await authHeaders();
     const res = await safeFetch(`${API_URL}/papers/${paperId}/rechunk`, {

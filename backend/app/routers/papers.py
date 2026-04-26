@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
 from ..services.chunking import Chunk, chunk_pages
+from ..services.claude import generate_annotations
 from ..services.embeddings import embed_texts
 from ..services.pdf import parse_pdf
 
@@ -285,6 +286,45 @@ def remove_tag(paper_id: str, name: str, user: CurrentUser = CurrentUserDep):
         "name", name
     ).execute()
     return {"ok": True}
+
+
+@router.get("/{paper_id}/annotate")
+def get_annotations(paper_id: str, user: CurrentUser = CurrentUserDep):
+    sb = get_supabase()
+    paper = (
+        sb.table("papers")
+        .select("id,title")
+        .eq("id", paper_id)
+        .eq("user_id", user.id)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    chunks = (
+        sb.table("chunks")
+        .select("content,page,chunk_index")
+        .eq("paper_id", paper_id)
+        .order("chunk_index")
+        .limit(20)
+        .execute()
+        .data
+        or []
+    )
+    if not chunks:
+        raise HTTPException(
+            status_code=422,
+            detail="No text available. Re-index this paper first.",
+        )
+
+    try:
+        terms = generate_annotations(paper["title"], [c["content"] for c in chunks])
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM error: {exc}") from exc
+
+    return {"chunks": chunks, "terms": terms}
 
 
 @router.get("/{paper_id}/related")

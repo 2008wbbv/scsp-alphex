@@ -110,8 +110,9 @@ CHART_END
 Rules for each CODE block:
 - Use only numpy and matplotlib.pyplot (already imported as np and plt)
 - os is imported; read output path from os.environ['OUT']
-- Style: facecolor='#0b0b0e', text/labels in white (#e8e8ee), bars/lines in purple (#7c5cff) or blue (#4facde)
-- plt.savefig(os.environ['OUT'], dpi=150, bbox_inches='tight', facecolor='#0b0b0e')
+- Style: white background, dark text/labels (#18181b), use slate (#334155) or blue (#3b82f6) for bars/lines
+- fig.patch.set_facecolor('white'); ax.set_facecolor('#f8f8f8')
+- plt.savefig(os.environ['OUT'], dpi=150, bbox_inches='tight', facecolor='white')
 - No plt.show(), no imports, no network or file access except os.environ['OUT']
 - If exact numbers aren't stated, use illustrative data and add "(Illustrative)" to the title
 - Include meaningful axis labels and a legend if needed"""
@@ -151,6 +152,66 @@ def analyze_paper_for_charts(title: str, chunks: list[str]) -> list[dict]:
         except (StopIteration, ValueError):
             continue
     return charts
+
+
+ANNOTATION_SYSTEM = (
+    "You are an academic reading assistant. Given text from a research paper, "
+    "identify technical terms, jargon, acronyms, and concepts a non-expert reader "
+    "might not understand.\n\n"
+    "Return ONLY lines in this exact format — no extra text:\n"
+    "TERM: <exact term as it appears in the text>\n"
+    "DEF: <concise 1-sentence plain-English definition>\n\n"
+    "Rules: max 15 terms; only include terms that actually appear in the provided text; "
+    "prioritise acronyms, model names, and field-specific jargon."
+)
+
+
+def generate_annotations(title: str, chunks: list[str]) -> list[dict]:
+    """Return [{term, definition}] for hard terms found in the paper."""
+    context = "\n\n---\n\n".join(chunks[:10])
+    user = f"Paper: {title}\n\nText:\n{context}"
+    raw = complete(
+        system=ANNOTATION_SYSTEM,
+        messages=[{"role": "user", "content": user}],
+        max_tokens=1000,
+        temperature=0.1,
+    )
+    terms: list[dict] = []
+    current: dict = {}
+    for line in raw.splitlines():
+        line = line.strip()
+        if line.startswith("TERM:"):
+            current = {"term": line[5:].strip()}
+        elif line.startswith("DEF:") and current:
+            current["definition"] = line[4:].strip()
+            terms.append(current)
+            current = {}
+    return terms
+
+
+TAGGING_SYSTEM = (
+    "You are a research librarian. Given a paper title and abstract, generate "
+    "4-7 concise lowercase tags that categorise the paper.\n\n"
+    "Return ONLY the tags, one per line. No bullets, numbers, or explanation.\n"
+    "Good tags: specific topics, methods, domains — e.g. 'transformers', "
+    "'protein folding', 'reinforcement learning', 'computer vision'.\n"
+    "Avoid: generic words like 'research', 'paper', 'study', 'analysis'."
+)
+
+
+def generate_tags(title: str, abstract: str) -> list[str]:
+    """Return a list of lowercase tag strings for a paper."""
+    user = f"Title: {title}\n\nAbstract: {abstract or '(none)'}"
+    try:
+        raw = complete(
+            system=TAGGING_SYSTEM,
+            messages=[{"role": "user", "content": user}],
+            max_tokens=150,
+            temperature=0.2,
+        )
+        return [t.strip().lower() for t in raw.splitlines() if t.strip()][:7]
+    except Exception:
+        return []
 
 
 def generate_chart_code(description: str) -> str:

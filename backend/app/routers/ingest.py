@@ -6,7 +6,7 @@ from ..db import get_supabase
 from ..services import arxiv as arxiv_svc
 from ..services import doi as doi_svc
 from ..services.chunking import Chunk, chunk_pages
-from ..services.claude import summarize_paper
+from ..services.claude import generate_tags, summarize_paper
 from ..services.embeddings import embed_texts
 from ..services.pdf import parse_pdf
 
@@ -109,6 +109,17 @@ def _persist(
         # Insert chunks in batches of 200 to keep request size sane.
         for i in range(0, len(rows), 200):
             sb.table("chunks").insert(rows[i : i + 200]).execute()
+
+    # Auto-tag (best-effort — never blocks ingest).
+    try:
+        auto_tags = generate_tags(final_title, abstract)
+        if auto_tags:
+            sb.table("tags").insert([
+                {"paper_id": paper_id, "user_id": user.id, "name": t}
+                for t in auto_tags
+            ]).execute()
+    except Exception:
+        pass
 
     return {**paper, "summary": summary, "n_chunks": len(chunks)}
 
@@ -234,5 +245,16 @@ def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
             n_chunks = len(rows)
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"Embedding failed: {exc}") from exc
+
+    # Auto-tag from title + abstract (best-effort).
+    try:
+        auto_tags = generate_tags(meta.title or "", meta.abstract or "")
+        if auto_tags:
+            sb.table("tags").insert([
+                {"paper_id": paper_id, "user_id": user.id, "name": t}
+                for t in auto_tags
+            ]).execute()
+    except Exception:
+        pass
 
     return {**paper, "n_chunks": n_chunks}

@@ -16,9 +16,8 @@ const config: Config = {
         fg:    "rgb(var(--color-fg)    / <alpha-value>)",
       },
       fontFamily: {
-        sans:  ["var(--font-geist-sans)",          "Inter",        "ui-sans-serif", "system-ui"],
-        serif: ["var(--font-instrument-serif)",    "Georgia",       "serif"],
-        mono:  ["var(--font-geist-mono)",          "JetBrains Mono","ui-monospace"],
+        sans: ["var(--font-geist-sans)", "Inter", "ui-sans-serif", "system-ui"],
+        mono: ["var(--font-geist-mono)", "JetBrains Mono", "ui-monospace"],
       },
     },
   },

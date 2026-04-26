@@ -56,6 +56,16 @@ export default function PaperCard({
     }
   }
 
+  async function deletePaper() {
+    if (!confirm(`Delete "${paper.title}"? This cannot be undone.`)) return;
+    try {
+      await api.deletePaper(paper.id);
+      onChange();
+    } catch {
+      // leave card in place
+    }
+  }
+
   async function removeTag(name: string) {
     try {
       await api.removeTag(paper.id, name);
@@ -142,12 +152,16 @@ export default function PaperCard({
                 source ↗
               </a>
             )}
-            <Link
-              href={`/papers/${paper.id}`}
-              className="chip hover:text-accent2 hover:border-accent/30 hover:bg-accent/10"
-            >
+            <Link href={`/papers/${paper.id}`} className="chip hover:text-fg hover:border-border/60">
               open →
             </Link>
+            <button
+              onClick={deletePaper}
+              className="chip hover:border-red-400/60 hover:text-red-400 hover:bg-red-50"
+              title="Delete paper"
+            >
+              ×
+            </button>
           </div>
         </div>
       </div>

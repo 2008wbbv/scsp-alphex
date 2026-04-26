@@ -47,8 +47,8 @@ export default function Sidebar() {
         <Link href="/library" className="group flex items-center gap-3">
           {/* αx logotype */}
           <div className="flex items-baseline leading-none select-none">
-            <span className="font-serif italic text-[1.65rem] text-fg transition-opacity group-hover:opacity-80">α</span>
-            <span className="font-sans font-bold text-[1.1rem] text-fg -ml-[1px] transition-opacity group-hover:opacity-80">x</span>
+            <span className="font-bold text-[1.65rem] text-fg transition-opacity group-hover:opacity-80">α</span>
+            <span className="font-bold text-[1.1rem] text-fg -ml-[1px] transition-opacity group-hover:opacity-80">x</span>
           </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-fg">Alphex</div>
