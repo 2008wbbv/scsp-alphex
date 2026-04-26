@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { BarChart3, MessageSquare } from "lucide-react";
+import { BarChart3, BookOpen, MessageSquare, X } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
@@ -55,16 +55,24 @@ export default function ChatPage() {
 
 function ChatPageInner() {
   const search = useSearchParams();
-  const paperId = search?.get("paper") ?? null;
+  const initialPaperId = search?.get("paper") ?? null;
 
+  const [papers, setPapers] = useState<any[]>([]);
+  const [selectedPaperId, setSelectedPaperId] = useState<string | null>(initialPaperId);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"chat" | "graph">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    api.listPapers().then(({ papers }) => setPapers(papers ?? [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" });
   }, [messages]);
+
+  const selectedPaper = papers.find((p) => p.id === selectedPaperId) ?? null;
 
   async function send(text: string) {
     if (!text.trim() || busy) return;
@@ -78,21 +86,11 @@ function ChatPageInner() {
         const { image_base64, code } = await api.makeGraph(text);
         setMessages((m) => [
           ...m,
-          {
-            id: uid(),
-            role: "assistant",
-            content: "Here's the chart you described:",
-            image_base64,
-            code,
-          },
+          { id: uid(), role: "assistant", content: "Here's the chart you described:", image_base64, code },
         ]);
       } else {
         const history = messages.slice().map((m) => ({ role: m.role, content: m.content }));
-        const { answer, citations } = await api.chat(
-          text,
-          history,
-          paperId ?? undefined
-        );
+        const { answer, citations } = await api.chat(text, history, selectedPaperId ?? undefined);
         setMessages((m) => [
           ...m,
           { id: uid(), role: "assistant", content: answer, citations },
@@ -101,11 +99,7 @@ function ChatPageInner() {
     } catch (err: any) {
       setMessages((m) => [
         ...m,
-        {
-          id: uid(),
-          role: "assistant",
-          content: err.message ?? "Something went wrong",
-        },
+        { id: uid(), role: "assistant", content: err.message ?? "Something went wrong" },
       ]);
     } finally {
       setBusy(false);
@@ -116,59 +110,97 @@ function ChatPageInner() {
     <Shell>
       <div className="mx-auto flex h-full max-w-3xl flex-col p-6">
         {/* Header */}
-        <header className="mb-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-fg">Assistant</h1>
-            <p className="text-xs text-muted">
-              {paperId ? "Scoped to one paper." : "Grounded in your library."}{" "}
-              Citations appear as{" "}
-              <span className="rounded bg-accent/20 px-1 font-mono text-[11px] text-accent2">
-                [S1]
-              </span>
-            </p>
+        <header className="mb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-fg">Assistant</h1>
+              <p className="text-xs text-muted">
+                Citations appear as{" "}
+                <span className="rounded bg-panel2 px-1 font-mono text-[11px] text-fg border border-border">
+                  [S1]
+                </span>
+              </p>
+            </div>
+            <div className="flex gap-1 rounded-full border border-border bg-panel2 p-0.5">
+              <button
+                onClick={() => setMode("chat")}
+                aria-pressed={mode === "chat"}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                  mode === "chat" ? "bg-panel shadow-sm text-fg" : "text-muted hover:text-fg"
+                }`}
+              >
+                <MessageSquare size={12} />
+                Chat
+              </button>
+              <button
+                onClick={() => setMode("graph")}
+                aria-pressed={mode === "graph"}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                  mode === "graph" ? "bg-panel shadow-sm text-fg" : "text-muted hover:text-fg"
+                }`}
+              >
+                <BarChart3 size={12} />
+                Graph
+              </button>
+            </div>
           </div>
-          <div className="flex gap-1 rounded-full border border-border bg-panel2 p-0.5">
-            <button
-              onClick={() => setMode("chat")}
-              aria-pressed={mode === "chat"}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                mode === "chat"
-                  ? "bg-accent/20 text-fg shadow-sm"
-                  : "text-muted hover:text-fg"
-              }`}
+
+          {/* Paper selector */}
+          <div className="flex items-center gap-2">
+            <BookOpen size={13} className="shrink-0 text-muted" />
+            <select
+              value={selectedPaperId ?? ""}
+              onChange={(e) => {
+                setSelectedPaperId(e.target.value || null);
+                setMessages([]);
+              }}
+              className="flex-1 rounded-md border border-border bg-panel px-2.5 py-1.5 text-xs text-fg focus:outline-none focus:border-fg/40"
             >
-              <MessageSquare size={12} />
-              Chat
-            </button>
-            <button
-              onClick={() => setMode("graph")}
-              aria-pressed={mode === "graph"}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                mode === "graph"
-                  ? "bg-accent/20 text-fg shadow-sm"
-                  : "text-muted hover:text-fg"
-              }`}
-            >
-              <BarChart3 size={12} />
-              Graph
-            </button>
+              <option value="">Entire library</option>
+              {papers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+            {selectedPaperId && (
+              <button
+                onClick={() => { setSelectedPaperId(null); setMessages([]); }}
+                className="text-muted hover:text-fg transition-colors"
+                title="Clear paper scope"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
+
+          {selectedPaper && (
+            <div className="flex items-center gap-2 rounded-md border border-border bg-panel px-3 py-2 text-xs">
+              <span className="font-medium text-fg truncate">{selectedPaper.title}</span>
+              <Link
+                href={`/papers/${selectedPaper.id}`}
+                className="ml-auto shrink-0 text-muted hover:text-fg"
+              >
+                open ↗
+              </Link>
+            </div>
+          )}
         </header>
 
         {/* Message thread */}
         <div
           ref={scrollRef}
-          className="scroll flex-1 space-y-4 overflow-y-auto rounded-xl border border-border bg-panel/20 p-4"
+          className="scroll flex-1 space-y-4 overflow-y-auto rounded-xl border border-border bg-panel/40 p-4"
         >
           {messages.length === 0 && (
             <div className="flex h-full items-center justify-center">
               <div className="max-w-xs text-center">
                 <div className="mb-3 flex justify-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-panel2 border border-border">
                     {mode === "graph" ? (
-                      <BarChart3 size={22} className="text-accent2" />
+                      <BarChart3 size={22} className="text-fg/60" />
                     ) : (
-                      <MessageSquare size={22} className="text-accent2" />
+                      <MessageSquare size={22} className="text-fg/60" />
                     )}
                   </div>
                 </div>
@@ -178,14 +210,16 @@ function ChatPageInner() {
                 <p className="mt-1.5 text-xs text-muted">
                   {mode === "graph"
                     ? "Claude writes Python, the backend executes it, and the PNG appears here."
-                    : "Retrieves passages from your library and cites them inline."}
+                    : selectedPaperId
+                    ? "Ask about this specific paper."
+                    : "Searches across your entire library."}
                 </p>
               </div>
             </div>
           )}
 
-          {messages.map((m, idx) => (
-            <div key={m.id} className="animate-fade-up" style={{ animationDelay: `${idx === messages.length - 1 ? 0 : 0}ms` }}>
+          {messages.map((m) => (
+            <div key={m.id} className="animate-fade-up">
               <Bubble msg={m} />
             </div>
           ))}
@@ -208,6 +242,8 @@ function ChatPageInner() {
             placeholder={
               mode === "graph"
                 ? "e.g. line chart of accuracy vs model size for three models"
+                : selectedPaperId
+                ? `Ask about "${selectedPaper?.title ?? "this paper"}"`
                 : "e.g. how do retrieval-augmented models handle long context?"
             }
           />
@@ -224,7 +260,7 @@ function Bubble({ msg }: { msg: Msg }) {
       <div
         className={`max-w-[82%] rounded-xl p-3.5 text-sm leading-relaxed ${
           isUser
-            ? "bg-gradient-to-br from-accent/80 to-accent/60 text-white shadow-md shadow-accent/10"
+            ? "bg-fg text-white shadow-sm"
             : "border border-border bg-panel text-fg"
         }`}
       >
@@ -238,16 +274,16 @@ function Bubble({ msg }: { msg: Msg }) {
           <img
             src={`data:image/png;base64,${msg.image_base64}`}
             alt="generated chart"
-            className="mt-3 w-full rounded-lg border border-border bg-white"
+            className="mt-3 w-full rounded-lg border border-border"
           />
         )}
 
         {msg.role === "assistant" && msg.code && (
           <details className="mt-3 text-xs">
-            <summary className="cursor-pointer text-muted hover:text-fg transition-colors">view code ↓
-              view code ↓
+            <summary className="cursor-pointer text-muted hover:text-fg transition-colors">
+              view code
             </summary>
-            <pre className="mt-2 overflow-x-auto rounded-lg border border-border bg-black/50 p-3 font-mono text-[11px] leading-relaxed text-muted/90">
+            <pre className="mt-2 overflow-x-auto rounded-lg border border-border bg-panel2 p-3 font-mono text-[11px] leading-relaxed text-muted">
               {msg.code}
             </pre>
           </details>
@@ -263,14 +299,13 @@ function Bubble({ msg }: { msg: Msg }) {
                 <li key={c.tag} className="text-xs">
                   <Link
                     href={`/papers/${c.paper_id}`}
-                    className="group flex items-baseline gap-1.5 text-muted hover:text-accent2 transition-colors"
+                    className="group flex items-baseline gap-1.5 text-muted hover:text-fg transition-colors"
                   >
-                    <span className="font-mono text-[10px] text-accent2/70 group-hover:text-accent2">
+                    <span className="font-mono text-[10px] text-fg/50 group-hover:text-fg">
                       [{c.tag}]
                     </span>
                     <span className="group-hover:underline">
-                      {c.title}
-                      {c.page ? ` · p.${c.page}` : ""}
+                      {c.title}{c.page ? ` · p.${c.page}` : ""}
                     </span>
                   </Link>
                 </li>
@@ -295,7 +330,7 @@ function renderCited(text: string, citations: Citation[]) {
       <Link
         key={i}
         href={`/papers/${c.paper_id}`}
-        className="mx-0.5 rounded bg-accent/20 px-1 py-0.5 font-mono text-[11px] text-accent2 hover:bg-accent/30 transition-colors"
+        className="mx-0.5 rounded bg-panel2 border border-border px-1 py-0.5 font-mono text-[11px] text-fg hover:bg-panel transition-colors"
         title={c.title}
       >
         {part}

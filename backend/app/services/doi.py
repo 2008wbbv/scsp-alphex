@@ -1,6 +1,12 @@
+import re
 from dataclasses import dataclass
 
 import httpx
+
+
+def _strip_jats(text: str) -> str:
+    """Remove JATS/XML tags like <jats:p>, <jats:title> etc."""
+    return re.sub(r"<[^>]+>", " ", text or "").strip()
 
 
 @dataclass
@@ -48,7 +54,7 @@ def fetch_doi(doi: str) -> DoiPaper:
         doi=doi,
         title=title.strip(),
         authors=[a for a in authors if a],
-        abstract=(msg.get("abstract") or "").strip(),
+        abstract=_strip_jats(msg.get("abstract") or ""),
         year=year,
         url=msg.get("URL") or f"https://doi.org/{doi}",
     )
