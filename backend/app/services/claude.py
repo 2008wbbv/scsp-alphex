@@ -94,6 +94,65 @@ GRAPH_SYSTEM = (
 )
 
 
+PAPER_CHART_SYSTEM = """You are a data visualization expert analyzing academic papers.
+
+Given paper chunks, identify 2-3 distinct quantitative findings, comparisons, or trends and write a matplotlib script for each.
+
+Return EXACTLY this format (no markdown, no extra text):
+
+CHART_START
+TITLE: <short chart title>
+EXPLANATION: <1-2 sentences: what this shows and the key insight>
+CODE:
+<python code>
+CHART_END
+
+Rules for each CODE block:
+- Use only numpy and matplotlib.pyplot (already imported as np and plt)
+- os is imported; read output path from os.environ['OUT']
+- Style: facecolor='#0b0b0e', text/labels in white (#e8e8ee), bars/lines in purple (#7c5cff) or blue (#4facde)
+- plt.savefig(os.environ['OUT'], dpi=150, bbox_inches='tight', facecolor='#0b0b0e')
+- No plt.show(), no imports, no network or file access except os.environ['OUT']
+- If exact numbers aren't stated, use illustrative data and add "(Illustrative)" to the title
+- Include meaningful axis labels and a legend if needed"""
+
+
+def analyze_paper_for_charts(title: str, chunks: list[str]) -> list[dict]:
+    """Return a list of {title, explanation, code} dicts from paper content."""
+    context = "\n\n---\n\n".join(chunks[:20])  # cap to avoid token overflow
+    user = (
+        f"Paper: {title}\n\n"
+        f"Excerpts:\n{context}\n\n"
+        "Generate 2-3 charts based on quantitative data or comparisons in this paper."
+    )
+    raw = complete(
+        system=PAPER_CHART_SYSTEM,
+        messages=[{"role": "user", "content": user}],
+        max_tokens=3000,
+        temperature=0.2,
+    )
+
+    charts = []
+    for block in raw.split("CHART_START"):
+        block = block.strip()
+        if "CHART_END" not in block:
+            continue
+        block = block[:block.index("CHART_END")].strip()
+        try:
+            title_line = next(l for l in block.splitlines() if l.startswith("TITLE:"))
+            exp_line = next(l for l in block.splitlines() if l.startswith("EXPLANATION:"))
+            code_start = block.index("CODE:") + len("CODE:")
+            code = block[code_start:].strip()
+            charts.append({
+                "title": title_line.replace("TITLE:", "").strip(),
+                "explanation": exp_line.replace("EXPLANATION:", "").strip(),
+                "code": code,
+            })
+        except (StopIteration, ValueError):
+            continue
+    return charts
+
+
 def generate_chart_code(description: str) -> str:
     user = (
         f"Chart request: {description}\n\n"

@@ -203,6 +203,15 @@ export const api = {
     return handle<{ image_base64: string; code: string }>(res);
   },
 
+  async chartsFromPaper(paperId: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/graph/paper/${paperId}`, {
+      method: "POST",
+      headers,
+    });
+    return handle<{ charts: { title: string; explanation: string; image_base64: string; code: string }[] }>(res);
+  },
+
   async exportLatex(payload: {
     title?: string;
     body: string;

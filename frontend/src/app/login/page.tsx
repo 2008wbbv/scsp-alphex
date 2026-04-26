@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail } from "lucide-react";
+import { Mail, BookOpen, MessageSquare, Search, Network, BarChart3 } from "lucide-react";
 
 import { supabaseBrowser } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,34 @@ function GoogleIcon() {
     </svg>
   );
 }
+
+const FEATURES = [
+  {
+    icon: BookOpen,
+    title: "Paper library",
+    desc: "Import from arXiv, DOI, or upload PDFs. Everything in one place.",
+  },
+  {
+    icon: Search,
+    title: "Semantic search",
+    desc: "Find relevant passages across your entire library using natural language.",
+  },
+  {
+    icon: MessageSquare,
+    title: "Grounded assistant",
+    desc: "Ask questions and get answers cited directly from your papers.",
+  },
+  {
+    icon: BarChart3,
+    title: "Data visualizations",
+    desc: "Auto-extract quantitative findings and generate charts from any paper.",
+  },
+  {
+    icon: Network,
+    title: "Similarity graph",
+    desc: "See how your papers relate to each other through vector embeddings.",
+  },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -71,79 +99,124 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink p-6">
-      <div className="card w-full max-w-md text-center">
-        <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent2 text-2xl font-bold text-ink">
-          α
+    <div className="flex min-h-screen bg-ink">
+      {/* Left panel — feature showcase */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent2 text-xl font-bold text-ink">
+            α
+          </div>
+          <span className="text-lg font-semibold text-white">Alphex</span>
         </div>
-        <h1 className="text-2xl font-semibold text-white">Alphex</h1>
-        <p className="mt-1 text-sm text-muted">
-          Your AI research workspace. Upload papers, search semantically, chat with a grounded assistant.
-        </p>
 
-        <div className="mt-6 space-y-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full gap-3"
-            disabled={loading !== null}
-            onClick={signInGoogle}
-          >
-            <GoogleIcon />
-            {loading === "google" ? "Redirecting…" : "Continue with Google"}
-          </Button>
-
-          <div className="flex items-center gap-3 text-xs text-muted">
-            <div className="h-px flex-1 bg-border" />
-            or
-            <div className="h-px flex-1 bg-border" />
+        <div className="space-y-8">
+          <div>
+            <h1 className="text-4xl font-bold text-white leading-tight">
+              Research at the<br />speed of thought.
+            </h1>
+            <p className="mt-3 text-muted text-base">
+              Import papers, search semantically, and let an AI assistant grounded in your library answer your questions.
+            </p>
           </div>
 
-          <form onSubmit={submitEmail} className="space-y-3 text-left">
-            <input
-              type="email"
-              className="input w-full"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <input
-              type="password"
-              className="input w-full"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+          <ul className="space-y-5">
+            {FEATURES.map((f) => (
+              <li key={f.title} className="flex items-start gap-4">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent/15">
+                  <f.icon size={16} className="text-accent2" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-white">{f.title}</div>
+                  <div className="text-xs text-muted">{f.desc}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="text-xs text-muted">
+          Hackathon demo. Data stored in Supabase.
+        </div>
+      </div>
+
+      {/* Right panel — auth form */}
+      <div className="flex flex-1 items-center justify-center p-8">
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <div className="mb-8 flex flex-col items-center lg:hidden">
+            <div className="grid h-12 w-12 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent2 text-2xl font-bold text-ink">
+              α
+            </div>
+            <div className="mt-2 text-xl font-semibold text-white">Alphex</div>
+          </div>
+
+          <h2 className="text-xl font-semibold text-white">
+            {mode === "signin" ? "Welcome back" : "Create your account"}
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            {mode === "signin" ? "Sign in to your research workspace." : "Start building your paper library."}
+          </p>
+
+          <div className="mt-6 space-y-3">
             <Button
-              type="submit"
+              type="button"
               variant="outline"
               className="w-full gap-3"
               disabled={loading !== null}
+              onClick={signInGoogle}
             >
-              <Mail size={16} />
-              {loading === "email"
-                ? "Please wait…"
-                : mode === "signup"
-                ? "Create account"
-                : "Sign in"}
+              <GoogleIcon />
+              {loading === "google" ? "Redirecting…" : "Continue with Google"}
             </Button>
-          </form>
 
-          {error && <div className="text-xs text-red-300">{error}</div>}
+            <div className="flex items-center gap-3 text-xs text-muted">
+              <div className="h-px flex-1 bg-border" />
+              or
+              <div className="h-px flex-1 bg-border" />
+            </div>
 
-          <button
-            type="button"
-            onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
-            className="text-xs text-muted hover:text-white"
-          >
-            {mode === "signin" ? "No account? Create one" : "Already have an account? Sign in"}
-          </button>
-        </div>
+            <form onSubmit={submitEmail} className="space-y-3">
+              <input
+                type="email"
+                className="input w-full"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <input
+                type="password"
+                className="input w-full"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                className="w-full gap-3"
+                disabled={loading !== null}
+              >
+                <Mail size={16} />
+                {loading === "email"
+                  ? "Please wait…"
+                  : mode === "signup"
+                  ? "Create account"
+                  : "Sign in"}
+              </Button>
+            </form>
 
-        <div className="mt-4 text-xs text-muted">
-          By signing in you agree this is a hackathon demo and your data is stored in Supabase.
+            {error && <div className="text-xs text-red-300">{error}</div>}
+
+            <button
+              type="button"
+              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
+              className="w-full text-center text-xs text-muted hover:text-white"
+            >
+              {mode === "signin" ? "No account? Create one" : "Already have an account? Sign in"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

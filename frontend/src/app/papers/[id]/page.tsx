@@ -13,6 +13,9 @@ export default function PaperPage({ params }: { params: { id: string } }) {
   const [draft, setDraft] = useState("");
   const [exporting, setExporting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [charts, setCharts] = useState<any[]>([]);
+  const [chartsLoading, setChartsLoading] = useState(false);
+  const [chartsError, setChartsError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +48,19 @@ export default function PaperPage({ params }: { params: { id: string } }) {
       load();
     } catch {
       setDraft(content);
+    }
+  }
+
+  async function generateCharts() {
+    setChartsLoading(true);
+    setChartsError(null);
+    try {
+      const { charts } = await api.chartsFromPaper(params.id);
+      setCharts(charts);
+    } catch (err: any) {
+      setChartsError(err.message ?? "Failed to generate charts");
+    } finally {
+      setChartsLoading(false);
     }
   }
 
@@ -138,22 +154,61 @@ export default function PaperPage({ params }: { params: { id: string } }) {
             </div>
           )}
 
+          {/* Charts from paper */}
+          <div className="card">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Data Visualizations</h2>
+              <button
+                onClick={generateCharts}
+                disabled={chartsLoading}
+                className="chip hover:text-white disabled:opacity-50"
+              >
+                {chartsLoading ? "Analyzing paper…" : charts.length > 0 ? "Regenerate" : "Generate charts"}
+              </button>
+            </div>
+            {chartsError && <div className="text-xs text-red-300">{chartsError}</div>}
+            {charts.length === 0 && !chartsLoading && !chartsError && (
+              <p className="text-xs text-muted">
+                Click "Generate charts" to auto-extract quantitative data and visualize it.
+              </p>
+            )}
+            {charts.map((c, i) => (
+              <div key={i} className="mb-4 last:mb-0">
+                <div className="mb-1 text-sm font-medium text-white">{c.title}</div>
+                <p className="mb-2 text-xs text-muted">{c.explanation}</p>
+                <img
+                  src={`data:image/png;base64,${c.image_base64}`}
+                  alt={c.title}
+                  className="w-full rounded-md border border-border"
+                />
+                <details className="mt-1 text-xs">
+                  <summary className="cursor-pointer text-muted">view code</summary>
+                  <pre className="mt-1 overflow-x-auto rounded-md bg-black/40 p-2 font-mono text-[11px] text-muted">
+                    {c.code}
+                  </pre>
+                </details>
+              </div>
+            ))}
+          </div>
+
+          {/* PDF viewer */}
           {paper.pdf_url ? (
             <div className="card">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white">PDF</h2>
+                <h2 className="text-sm font-semibold text-white">Read Paper</h2>
                 <a
                   href={paper.pdf_url}
                   target="_blank"
                   rel="noreferrer"
                   className="chip hover:text-white"
                 >
-                  open ↗
+                  open in new tab ↗
                 </a>
               </div>
               <iframe
                 src={paper.pdf_url}
-                className="h-[600px] w-full rounded-md border border-border bg-black"
+                className="h-[80vh] w-full rounded-md border border-border bg-white"
+                title={paper.title}
               />
             </div>
           ) : paper.source_url ? (

@@ -125,9 +125,14 @@ def get_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     if storage_path:
         try:
             signed = sb.storage.from_("papers").create_signed_url(storage_path, 60 * 60)
-            pdf_url = signed.get("signedURL") or signed.get("signed_url")
+            pdf_url = signed.get("signedURL") or signed.get("signedUrl") or signed.get("signed_url")
         except Exception:
             pdf_url = None
+    # Fallback: derive PDF URL from arXiv source URL
+    if not pdf_url and paper.get("source_type") == "arxiv" and paper.get("source_url"):
+        src = paper["source_url"]
+        if "/abs/" in src:
+            pdf_url = src.replace("/abs/", "/pdf/")
     paper["pdf_url"] = pdf_url
 
     return paper
