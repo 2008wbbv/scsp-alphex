@@ -1,115 +1,114 @@
 # Alphex — AI Research Acceleration Platform
 
-> Upload papers, search them semantically, and chat with a research assistant
-> that's grounded in your personal library and cites every claim.
-
-**Team:** solo build (Alphex)
-**Track:** AI tools for research / knowledge work
+Import papers, ask anything, publish faster.
 
 ---
 
-## What we built
+## Features
 
-A full-stack workspace for reading research papers faster. The flow is:
+**Library** — Upload PDFs, paste arXiv IDs, or drop in DOIs. Papers are chunked, embedded, and indexed automatically on import. Auto-tagged by topic using Claude. Delete papers and manage tags from the library grid.
 
-1. **Ingest** — drop in a PDF or paste an arXiv id / DOI. The backend parses
-   the file with PyMuPDF, asks Claude for a five-sentence summary, chunks the
-   text, embeds each chunk with `text-embedding-3-small`, and stores everything
-   in Supabase Postgres + pgvector.
-2. **Search** — cosine similarity over every chunk in your library, scoped by
-   user via Supabase RLS.
-3. **Chat** — ask a question, the backend retrieves the top-k chunks, builds
-   a context block tagged `[S1]` … `[Sn]`, and prompts Claude to answer using
-   only those snippets with inline citations. The frontend renders each tag as
-   a clickable link to the source paper.
-4. **Library + notes** — grid view with read/unread/queued status and tags,
-   per-paper detail view with the rendered PDF, related-papers sidebar
-   (averaged-embedding cosine lookup), and a notes editor that links each note
-   to a paper.
-5. **Graph generation** — describe a chart in English, Claude writes
-   matplotlib code, the backend executes it in a stripped-down subprocess, and
-   the PNG is rendered inline in chat.
-6. **LaTeX export** — turn any note or AI summary into a `.tex` file with
-   `\cite{}` references auto-built from each linked paper's metadata.
+**Assistant** — Chat with Claude grounded in your library. Every answer cites the exact chunk it came from, inline as `[S1]`. Scope to a single paper or search your entire library. Switch between Chat and Graph modes in the same interface.
+
+**Search** — Semantic vector search across all your papers with a cosine similarity fallback to keyword search.
+
+**Graphs** — Similarity graph showing how your papers relate to each other. Figure library that extracts and renders quantitative charts from any paper, with source citations. Prompt-based chart generation using Claude + matplotlib.
+
+**Annotations** — View any paper with AI-generated hover definitions for technical terms, acronyms, and jargon. Glossary sidebar lists every identified term.
+
+**Notes** — Linked notes attached to papers or freeform. Full CRUD.
+
+**Forge** — Paste raw notes and data, optionally ground it in library papers. Claude generates a structured research draft with heading, text, and chart sections. Edit sections inline, add comments per section, share with a public link.
+
+**LaTeX export** — Turn any note or AI summary into a `.tex` file with `\cite{}` references built from paper metadata.
+
+---
 
 ## Stack
 
-| Layer       | Tech                                                       |
-|-------------|------------------------------------------------------------|
-| Frontend    | Next.js 14 (app router), Tailwind CSS, TypeScript          |
-| Backend     | FastAPI (Python 3.11), Uvicorn                             |
-| Auth        | Supabase Auth (Google OAuth) + JWT verification in FastAPI |
-| Database    | Supabase Postgres                                          |
-| Vectors     | `pgvector` (1536-d), ivfflat cosine index                  |
-| File store  | Supabase Storage (private `papers` bucket)                 |
-| PDF parsing | PyMuPDF                                                    |
-| Embeddings  | OpenAI `text-embedding-3-small`                            |
-| LLM         | Anthropic Claude `claude-sonnet-4-20250514`                |
-| Charts      | Claude → Python (matplotlib) → PNG, executed server-side   |
-| Deploy      | Vercel (frontend) + Railway (backend, Dockerfile)          |
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 14 (app router), TypeScript, Tailwind CSS |
+| Backend | FastAPI (Python 3.11), Uvicorn |
+| Auth | Supabase Auth (Google OAuth + email) + JWT verification in FastAPI |
+| Database | Supabase Postgres + pgvector (1536-d, ivfflat cosine index) |
+| File storage | Supabase Storage (private `papers` bucket) |
+| PDF parsing | PyMuPDF |
+| Embeddings | OpenAI `text-embedding-3-small` |
+| LLM | Anthropic Claude (`claude-sonnet-4-20250514`) |
+| Charts | Claude → Python (matplotlib) → PNG, sandboxed subprocess |
 
 ## APIs used
 
-- **Anthropic Messages API** — summaries, RAG chat, chart code generation.
-- **OpenAI Embeddings API** — `text-embedding-3-small`.
-- **Supabase** — Auth, Postgres + pgvector RPC, Storage signed URLs.
-- **arXiv API** — metadata + PDF for `arxiv.org/abs/<id>` ingest.
-- **Crossref REST API** — DOI metadata for the DOI ingest path.
+- **Anthropic Messages API** — summaries, RAG chat, chart code, annotations, tagging, forge drafts
+- **OpenAI Embeddings API** — `text-embedding-3-small`
+- **Supabase** — Auth, Postgres + pgvector RPC, Storage signed URLs
+- **arXiv API** — metadata + PDF for arXiv ingest
+- **Crossref REST API** — DOI metadata for DOI ingest
+
+---
 
 ## Repository layout
 
 ```
 supabase/schema.sql          — tables, RLS, RPC functions, storage bucket
-backend/                     — FastAPI service (Docker → Railway)
-  app/main.py                — app factory, CORS, router wiring
-  app/auth.py                — Supabase JWT verification dependency
-  app/routers/               — ingest, search, chat, papers, notes, graph, latex
-  app/services/              — pdf, chunking, embeddings, claude, arxiv, doi
-frontend/                    — Next.js 14 app router (Vercel)
-  src/app/                   — pages: login, library, papers/[id], chat, search, notes
-  src/components/            — Sidebar, Shell, AuthGate, IngestBar, PaperCard
-  src/lib/                   — supabase browser client, typed API wrapper
+backend/
+  app/
+    main.py                  — app factory, CORS, router wiring
+    auth.py                  — Supabase JWT verification dependency
+    db.py                    — service-role Supabase client
+    routers/                 — chat, forge, graph, ingest, latex, notes, papers, search
+    services/                — claude.py, chunking.py, embeddings.py, doi.py, arxiv.py
+frontend/
+  src/
+    app/                     — pages: library, chat, graph, forge, search, notes, papers/[id], papers/[id]/annotate
+    components/              — Shell, Sidebar, AuthGate, IngestBar, PaperCard
+    lib/                     — api.ts (typed API client), supabase.ts
 ```
 
 ## Endpoint reference
 
-| Method | Path                              | Notes                                           |
-|--------|-----------------------------------|-------------------------------------------------|
-| POST   | `/ingest/upload`                  | multipart PDF                                   |
-| POST   | `/ingest/arxiv`                   | `{ "arxiv": "2310.06825" }`                     |
-| POST   | `/ingest/doi`                     | `{ "doi": "10.1038/nature14539" }`              |
-| POST   | `/search`                         | `{ "query": "...", "k": 8 }`                    |
-| POST   | `/chat`                           | RAG, returns `{answer, citations}`              |
-| GET    | `/papers`                         | list user's papers                              |
-| GET    | `/papers/{id}`                    | metadata + signed PDF URL                       |
-| PATCH  | `/papers/{id}`                    | update status / title                           |
-| GET    | `/papers/{id}/related`            | cosine-similar peers                            |
-| POST   | `/papers/{id}/tags`               | add tag                                         |
-| GET/POST/PATCH/DELETE | `/notes`               | CRUD                                            |
-| POST   | `/graph`                          | English → matplotlib → PNG                      |
-| POST   | `/latex`                          | export note/summary as `.tex` with `\cite{}`    |
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/ingest/upload` | multipart PDF |
+| POST | `/ingest/arxiv` | `{ "arxiv": "2310.06825" }` |
+| POST | `/ingest/doi` | `{ "doi": "10.1038/..." }` |
+| POST | `/search` | `{ "query": "...", "k": 8 }` |
+| POST | `/chat` | RAG, returns `{ answer, citations }` |
+| GET | `/papers` | list user's papers with tags |
+| GET/PATCH/DELETE | `/papers/{id}` | metadata, update, delete |
+| POST | `/papers/{id}/rechunk` | re-index a paper |
+| GET | `/papers/{id}/annotate` | AI term definitions |
+| GET | `/papers/{id}/related` | cosine-similar peers |
+| POST/DELETE | `/papers/{id}/tags` | manage tags |
+| GET | `/papers/graph` | similarity graph data |
+| POST | `/graph` | prompt → matplotlib PNG |
+| POST | `/graph/paper/{id}` | extract charts from paper |
+| POST | `/forge/draft` | generate draft from notes |
+| GET | `/forge/drafts` | list user's drafts |
+| GET/PATCH/DELETE | `/forge/drafts/{id}` | get, update, delete draft |
+| POST | `/forge/drafts/{id}/share` | generate share token |
+| GET | `/forge/shared/{token}` | public draft view (no auth) |
+| GET/POST/PATCH/DELETE | `/notes` | notes CRUD |
+| POST | `/latex` | export as `.tex` with `\cite{}` |
 
-All endpoints require `Authorization: Bearer <supabase-jwt>`.
+All endpoints except `/forge/shared/{token}` require `Authorization: Bearer <supabase-jwt>`.
 
-## How to run locally
+---
 
-### 0. Prereqs
+## Local setup
 
-- Python 3.11
-- Node 18+
-- A free Supabase project
-- Anthropic + OpenAI API keys
-- Google OAuth client (configured in Supabase → Authentication → Providers)
+### Prerequisites
+
+- Python 3.11+, Node 18+
+- Supabase project
+- Anthropic API key, OpenAI API key
 
 ### 1. Database
 
-In the Supabase SQL editor, run the entire contents of `supabase/schema.sql`.
-This creates tables, the `match_chunks` and `related_papers` RPCs, the
-`papers` storage bucket, and RLS policies.
+Run `supabase/schema.sql` in the Supabase SQL editor. This creates all tables, indexes, RLS policies, and the vector search functions.
 
-In Supabase → Authentication → Providers, enable Google and add
-`http://localhost:3000/auth/callback` (and your Vercel URL) to the allowed
-redirect URLs.
+In Supabase → Authentication → Providers, enable Google and add `http://localhost:3000/auth/callback` to the allowed redirect URLs.
 
 ### 2. Backend
 
@@ -121,55 +120,48 @@ cp .env.example .env   # fill in keys
 uvicorn app.main:app --reload --port 8000
 ```
 
-The `SUPABASE_JWT_SECRET` is in Supabase → Project settings → API → "JWT
-Settings" → "JWT Secret". The `SUPABASE_SERVICE_ROLE_KEY` is on the same page.
+Required env vars:
+
+```
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_ANON_KEY=
+SUPABASE_JWT_SECRET=
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+CLAUDE_MODEL=claude-sonnet-4-20250514
+EMBED_MODEL=text-embedding-3-small
+CORS_ORIGINS=http://localhost:3000
+PORT=8000
+```
 
 ### 3. Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local   # fill in NEXT_PUBLIC_* values
+cp .env.local.example .env.local   # fill in Supabase public keys
 npm run dev
 ```
 
-Visit `http://localhost:3000`, sign in with Google, and start uploading.
+Required env vars:
 
-## Deploy
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-- **Backend (Railway):** point a service at `backend/Dockerfile`, set every env
-  var from `backend/.env.example`, and set `CORS_ORIGINS` to your Vercel URL.
-- **Frontend (Vercel):** import the repo with root `frontend/`, set the three
-  `NEXT_PUBLIC_*` env vars, and deploy. Add the deployed URL to Supabase's
-  allowed redirects.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Demo path (under 5 minutes)
+---
 
-1. Sign in with Google.
-2. Paste `2310.06825` (Mistral 7B) into the arXiv box → wait for the summary.
-3. Open the paper detail page, show the PDF and the 5-sentence AI summary.
-4. Go to **Search**, query "long context retrieval" → click a hit.
-5. Go to **Assistant**, ask "How does this paper compare attention variants?" —
-   answer comes back with `[S1]`, `[S2]` citations linking to the source paper.
-6. Switch the assistant to **Graph** mode, ask for "bar chart of MMLU scores
-   for three open models, illustrative" → PNG appears inline.
-7. From a paper, click **export .tex** → download a LaTeX file with a
-   pre-built `\cite{}` and matching bib entry.
+## Security notes
 
-## Constraints & decisions
-
-- **Reliability over breadth.** P0 (ingest, embed, search, cited chat) is
-  written first and tested as the demo path. P1 (notes, related, library
-  status) and P2 (graphs, LaTeX) layer on without altering the P0 surfaces.
-- **No keys in code.** Backend reads from `.env` via pydantic-settings,
-  frontend uses `NEXT_PUBLIC_*` env vars only for the anon key + URL.
-- **RLS on every table** so even if the frontend bypassed the API, users
-  could only read their own rows. Backend uses the service role key but
-  filters every query by `user_id`.
-- **Sandboxed graph execution.** Generated Python is filtered for an
-  allow-list of imports (`numpy`, `matplotlib`, `os` for `OUT`), runs in a
-  20-second `subprocess.run` with a clean env, and only writes to a temp file.
+- **Sandboxed chart execution.** Generated Python is regex-filtered for a blocklist of dangerous imports, runs in a 20-second `subprocess.run` with a minimal clean environment, and only writes to a randomly-named temp file.
+- **RLS on every table.** Even if the frontend bypassed the API, Supabase row-level security restricts every user to their own rows. The backend uses the service role key but manually filters every query by the verified `user_id` from the JWT.
+- **No keys in code.** Backend reads from `.env` via pydantic-settings; frontend uses `NEXT_PUBLIC_*` env vars only for the anon key and URL.
 
 ## License
 
-MIT — for hackathon purposes.
+MIT
