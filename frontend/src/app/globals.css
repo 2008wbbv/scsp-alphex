@@ -45,18 +45,20 @@ a {
   border-radius: 4px;
 }
 
-.btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-panel px-3 py-1.5 text-sm font-medium text-white transition hover:bg-panel2 disabled:opacity-50;
-}
-.btn-primary {
-  @apply bg-accent text-white border-accent hover:bg-[#6a4ce0];
-}
-.input {
-  @apply w-full rounded-md border border-border bg-panel px-3 py-2 text-sm text-white placeholder-muted focus:border-accent focus:outline-none;
-}
-.card {
-  @apply rounded-lg border border-border bg-panel p-4;
-}
-.chip {
-  @apply inline-flex items-center gap-1 rounded-full border border-border bg-panel2 px-2 py-0.5 text-xs text-muted;
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-panel px-3 py-1.5 text-sm font-medium text-white transition hover:bg-panel2 disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-accent text-white border-accent hover:bg-[#6a4ce0];
+  }
+  .input {
+    @apply w-full rounded-md border border-border bg-panel px-3 py-2 text-sm text-white placeholder-muted focus:border-accent focus:outline-none;
+  }
+  .card {
+    @apply rounded-lg border border-border bg-panel p-4;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-border bg-panel2 px-2 py-0.5 text-xs text-muted;
+  }
 }

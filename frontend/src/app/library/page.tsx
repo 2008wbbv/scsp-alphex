@@ -71,6 +71,7 @@ export default function LibraryPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
+              aria-pressed={filter === f}
               className={`chip uppercase ${
                 filter === f ? "border-accent bg-accent/20 text-white" : "hover:text-white"
               }`}

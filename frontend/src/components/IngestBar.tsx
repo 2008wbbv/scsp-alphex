@@ -27,7 +27,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
 
   async function onArxiv(e: React.FormEvent) {
     e.preventDefault();
-    if (!arxiv.trim()) return;
+    if (!arxiv.trim()) { setError("Enter an arXiv ID or URL."); return; }
     setError(null);
     setBusy("arxiv");
     try {
@@ -35,7 +35,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
       setArxiv("");
       onIngested();
     } catch (e: any) {
-      setError(e.message ?? "arxiv import failed");
+      setError(e.message ?? "arXiv import failed");
     } finally {
       setBusy(null);
     }
@@ -43,7 +43,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
 
   async function onDoi(e: React.FormEvent) {
     e.preventDefault();
-    if (!doi.trim()) return;
+    if (!doi.trim()) { setError("Enter a DOI."); return; }
     setError(null);
     setBusy("doi");
     try {
@@ -51,7 +51,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
       setDoi("");
       onIngested();
     } catch (e: any) {
-      setError(e.message ?? "doi import failed");
+      setError(e.message ?? "DOI import failed");
     } finally {
       setBusy(null);
     }
@@ -90,7 +90,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
             <input
               className="input"
               value={arxiv}
-              onChange={(e) => setArxiv(e.target.value)}
+              onChange={(e) => { setArxiv(e.target.value); setError(null); }}
               placeholder="2310.06825 or arxiv.org/abs/…"
             />
             <button type="submit" className="btn btn-primary" disabled={busy !== null}>
@@ -107,7 +107,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
             <input
               className="input"
               value={doi}
-              onChange={(e) => setDoi(e.target.value)}
+              onChange={(e) => { setDoi(e.target.value); setError(null); }}
               placeholder="10.1038/nature14539"
             />
             <button type="submit" className="btn btn-primary" disabled={busy !== null}>

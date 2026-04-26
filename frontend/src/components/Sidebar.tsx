@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BookOpen, MessageSquare, Search, FileText, Network } from "lucide-react";
 
 import { supabaseBrowser } from "@/lib/supabase";
 
 const NAV = [
-  { href: "/library", label: "Library", icon: "📚" },
-  { href: "/chat", label: "Assistant", icon: "🤖" },
-  { href: "/search", label: "Search", icon: "🔎" },
-  { href: "/notes", label: "Notes", icon: "📝" },
-  { href: "/graph", label: "Graph", icon: "◎" },
+  { href: "/library", label: "Library", Icon: BookOpen },
+  { href: "/chat", label: "Assistant", Icon: MessageSquare },
+  { href: "/search", label: "Search", Icon: Search },
+  { href: "/notes", label: "Notes", Icon: FileText },
+  { href: "/graph", label: "Graph", Icon: Network },
 ];
 
 export default function Sidebar() {
@@ -67,7 +68,7 @@ export default function Sidebar() {
                   : "text-muted hover:bg-panel2 hover:text-white"
               }`}
             >
-              <span>{item.icon}</span>
+              <item.Icon size={16} />
               {item.label}
             </Link>
           );

@@ -10,6 +10,7 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<any[]>([]);
   const [papers, setPapers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [paperId, setPaperId] = useState<string>("");
@@ -17,12 +18,13 @@ export default function NotesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [n, p] = await Promise.all([api.listNotes(), api.listPapers()]);
       setNotes(n.notes ?? []);
       setPapers(p.papers ?? []);
-    } catch {
-      // leave existing state; loading clears either way
+    } catch (err: any) {
+      setLoadError(err.message ?? "Failed to load notes.");
     } finally {
       setLoading(false);
     }
@@ -125,6 +127,8 @@ export default function NotesPage() {
 
         {loading ? (
           <div className="text-muted">Loading…</div>
+        ) : loadError ? (
+          <div className="text-sm text-red-300">{loadError}</div>
         ) : notes.length === 0 ? (
           <div className="card text-center text-muted">
             No notes yet. Write one above.

@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
+
+const PromptInputBox = dynamic(
+  () => import("@/components/ui/ai-prompt-box").then((m) => m.PromptInputBox),
+  { ssr: false }
+);
 
 type Citation = {
   tag: string;
@@ -51,7 +57,6 @@ function ChatPageInner() {
   const paperId = search?.get("paper") ?? null;
 
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"chat" | "graph">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -60,11 +65,8 @@ function ChatPageInner() {
     scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" });
   }, [messages]);
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || busy) return;
-    setInput("");
+  async function send(text: string) {
+    if (!text.trim() || busy) return;
 
     const userMsg: Msg = { id: uid(), role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
@@ -101,7 +103,7 @@ function ChatPageInner() {
         {
           id: uid(),
           role: "assistant",
-          content: `⚠️ ${err.message ?? "Something went wrong"}`,
+          content: err.message ?? "Something went wrong",
         },
       ]);
     } finally {
@@ -123,12 +125,14 @@ function ChatPageInner() {
           <div className="flex gap-1">
             <button
               onClick={() => setMode("chat")}
+              aria-pressed={mode === "chat"}
               className={`chip ${mode === "chat" ? "border-accent bg-accent/20 text-white" : "hover:text-white"}`}
             >
               Chat
             </button>
             <button
               onClick={() => setMode("graph")}
+              aria-pressed={mode === "graph"}
               className={`chip ${mode === "graph" ? "border-accent bg-accent/20 text-white" : "hover:text-white"}`}
             >
               Graph
@@ -153,22 +157,17 @@ function ChatPageInner() {
           {busy && <div className="text-sm text-muted">…thinking</div>}
         </div>
 
-        <form onSubmit={send} className="mt-3 flex gap-2">
-          <input
-            className="input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+        <div className="mt-3">
+          <PromptInputBox
+            onSend={(msg) => send(msg)}
+            isLoading={busy}
             placeholder={
               mode === "graph"
                 ? "e.g. line chart of accuracy vs model size for three models"
                 : "e.g. how do retrieval-augmented models compare on long context?"
             }
-            disabled={busy}
           />
-          <button className="btn btn-primary" disabled={busy}>
-            Send
-          </button>
-        </form>
+        </div>
       </div>
     </Shell>
   );
