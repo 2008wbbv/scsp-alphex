@@ -1,4 +1,6 @@
+import base64
 import secrets
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -7,7 +9,6 @@ from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
 from ..services.claude import generate_forge_draft, generate_chart_code
 from ..routers.graph import _run_chart_code
-import base64
 
 router = APIRouter(prefix="/forge", tags=["forge"])
 
@@ -108,7 +109,7 @@ def get_draft(draft_id: str, user: CurrentUser = CurrentUserDep):
 @router.patch("/drafts/{draft_id}")
 def update_draft(draft_id: str, body: SectionUpdate, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
-    payload: dict = {"sections": body.sections, "updated_at": "now()"}
+    payload: dict = {"sections": body.sections, "updated_at": datetime.now(timezone.utc).isoformat()}
     if body.title is not None:
         payload["title"] = body.title
     result = (
