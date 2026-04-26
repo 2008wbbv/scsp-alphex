@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, BookOpen, MessageSquare, Search, Network, BarChart3 } from "lucide-react";
-import CornerFrameScrambleText from "@/components/ui/corner-frame-scramble-text";
 
 import { supabaseBrowser } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -104,20 +103,18 @@ export default function LoginPage() {
       {/* Left panel — feature showcase */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border">
         <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent2 text-xl font-bold text-ink">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-xl font-bold text-white">
             α
           </div>
-          <span className="text-lg font-semibold text-white">Alphex</span>
+          <span className="text-lg font-semibold text-[#0b0b0e]">Alphex</span>
         </div>
 
         <div className="space-y-8">
           <div>
-            <CornerFrameScrambleText
-              value="Research at the speed of thought."
-              as="h1"
-              className="text-4xl font-bold text-white leading-tight"
-            />
-            <p className="mt-6 text-muted text-base">
+            <h1 className="text-4xl font-bold text-[#0b0b0e] leading-tight">
+              Research at the<br />speed of thought.
+            </h1>
+            <p className="mt-4 text-muted text-base">
               Import papers, search semantically, and let an AI assistant grounded in your library answer your questions.
             </p>
           </div>
@@ -125,11 +122,11 @@ export default function LoginPage() {
           <ul className="space-y-5">
             {FEATURES.map((f) => (
               <li key={f.title} className="flex items-start gap-4">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent/15">
-                  <f.icon size={16} className="text-accent2" />
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent/10">
+                  <f.icon size={16} className="text-accent" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-white">{f.title}</div>
+                  <div className="text-sm font-medium text-[#0b0b0e]">{f.title}</div>
                   <div className="text-xs text-muted">{f.desc}</div>
                 </div>
               </li>
@@ -147,13 +144,13 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="mb-8 flex flex-col items-center lg:hidden">
-            <div className="grid h-12 w-12 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent2 text-2xl font-bold text-ink">
+            <div className="grid h-12 w-12 place-items-center rounded-lg bg-accent text-2xl font-bold text-white">
               α
             </div>
-            <div className="mt-2 text-xl font-semibold text-white">Alphex</div>
+            <div className="mt-2 text-xl font-semibold text-[#0b0b0e]">Alphex</div>
           </div>
 
-          <h2 className="text-xl font-semibold text-white">
+          <h2 className="text-xl font-semibold text-[#0b0b0e]">
             {mode === "signin" ? "Welcome back" : "Create your account"}
           </h2>
           <p className="mt-1 text-sm text-muted">

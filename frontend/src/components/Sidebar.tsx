@@ -46,14 +46,13 @@ export default function Sidebar() {
   const initials = email ? email[0].toUpperCase() : "?";
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-border bg-panel/60 backdrop-blur-sm p-4">
-      {/* Logo */}
+    <aside className="flex h-screen w-60 flex-col border-r border-border bg-panel/60 p-4">
       <Link href="/library" className="mb-6 flex items-center gap-2.5 group">
-        <div className="relative grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent2 font-bold text-ink text-sm shadow-lg shadow-accent/20 group-hover:shadow-accent/40 transition-shadow">
+        <div className="relative grid h-8 w-8 place-items-center rounded-lg bg-accent font-bold text-white text-sm">
           α
         </div>
         <div className="leading-tight">
-          <div className="font-semibold text-white">Alphex</div>
+          <div className="font-semibold text-[#0b0b0e]">Alphex</div>
           <div className="text-[10px] text-muted tracking-wide">research, accelerated</div>
         </div>
       </Link>
@@ -68,8 +67,8 @@ export default function Sidebar() {
               href={item.href}
               className={`group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-all ${
                 active
-                  ? "bg-accent/12 text-white"
-                  : "text-muted hover:bg-panel2 hover:text-white"
+                  ? "bg-accent/10 text-accent font-medium"
+                  : "text-muted hover:bg-panel2 hover:text-[#0b0b0e]"
               }`}
             >
               {active && (
@@ -77,7 +76,7 @@ export default function Sidebar() {
               )}
               <item.Icon
                 size={15}
-                className={`shrink-0 transition-colors ${active ? "text-accent2" : "text-muted group-hover:text-white"}`}
+                className={`shrink-0 transition-colors ${active ? "text-accent" : "text-muted group-hover:text-[#0b0b0e]"}`}
               />
               {item.label}
             </Link>
@@ -90,7 +89,7 @@ export default function Sidebar() {
         {!authReady ? null : email ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent2 text-[10px] font-bold text-ink">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
                 {initials}
               </div>
               <div className="min-w-0">

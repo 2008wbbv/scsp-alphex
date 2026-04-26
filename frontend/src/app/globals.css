@@ -3,20 +3,24 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
-  --foreground: #e8e8ee;
+  color-scheme: light;
+  --foreground: #0b0b0e;
 }
 
 html,
 body {
   height: 100%;
-  background: #0b0b0e;
-  color: #e8e8ee;
+  background: #ffffff;
+  color: #0b0b0e;
 }
 
 body {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+code, pre, kbd {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 * {
@@ -24,16 +28,16 @@ body {
 }
 
 a {
-  color: #c5b8ff;
+  color: #5b3fd4;
 }
 
 ::selection {
-  background: rgba(124, 92, 255, 0.4);
+  background: rgba(91, 63, 212, 0.2);
 }
 
 .scroll {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a33 transparent;
+  scrollbar-color: #e0e0e8 transparent;
 }
 
 .scroll::-webkit-scrollbar {
@@ -42,7 +46,7 @@ a {
 }
 
 .scroll::-webkit-scrollbar-thumb {
-  background: #2a2a33;
+  background: #e0e0e8;
   border-radius: 4px;
 }
 
@@ -74,7 +78,7 @@ a {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #9aa0aa;
+  background: #6b7280;
   animation: thinking-dot 1.3s ease-in-out infinite;
 }
 
@@ -83,13 +87,13 @@ a {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-panel px-3 py-1.5 text-sm font-medium text-white transition-all hover:bg-panel2 disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-panel px-3 py-1.5 text-sm font-medium text-[#0b0b0e] transition-all hover:bg-panel2 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply bg-accent text-white border-accent hover:bg-[#6a4ce0] hover:border-[#6a4ce0];
+    @apply bg-accent text-white border-accent hover:bg-[#4a30c0] hover:border-[#4a30c0];
   }
   .input {
-    @apply w-full rounded-md border border-border bg-panel px-3 py-2 text-sm text-white placeholder-muted focus:border-accent focus:outline-none transition-colors;
+    @apply w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-[#0b0b0e] placeholder-muted focus:border-accent focus:outline-none transition-colors;
   }
   .card {
     @apply rounded-lg border border-border bg-panel p-4 transition-colors;
