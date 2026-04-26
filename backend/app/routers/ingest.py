@@ -44,7 +44,7 @@ def _persist(
         summary = ""
 
     sb = get_supabase()
-    paper = (
+    result = (
         sb.table("papers")
         .insert(
             {
@@ -60,8 +60,10 @@ def _persist(
             }
         )
         .execute()
-        .data[0]
     )
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create paper record")
+    paper = result.data[0]
 
     paper_id = paper["id"]
 
@@ -136,8 +138,13 @@ def ingest_arxiv(body: ArxivIn, user: CurrentUser = CurrentUserDep):
     if not arxiv_id:
         raise HTTPException(status_code=400, detail="Could not parse arXiv id")
 
-    meta = arxiv_svc.fetch_arxiv(arxiv_id)
-    pdf_bytes = arxiv_svc.download_pdf(meta.pdf_url)
+    try:
+        meta = arxiv_svc.fetch_arxiv(arxiv_id)
+        pdf_bytes = arxiv_svc.download_pdf(meta.pdf_url)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"arXiv fetch failed: {exc}") from exc
 
     return _persist(
         user,
@@ -155,10 +162,15 @@ def ingest_arxiv(body: ArxivIn, user: CurrentUser = CurrentUserDep):
 def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
     """DOI ingest stores metadata only — many publishers don't allow PDF
     download from a DOI alone. Useful for tracking references."""
-    meta = doi_svc.fetch_doi(body.doi)
+    try:
+        meta = doi_svc.fetch_doi(body.doi)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"DOI fetch failed: {exc}") from exc
 
     sb = get_supabase()
-    paper = (
+    result = (
         sb.table("papers")
         .insert(
             {
@@ -174,6 +186,7 @@ def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
             }
         )
         .execute()
-        .data[0]
     )
-    return {**paper, "n_chunks": 0}
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create paper record")
+    return {**result.data[0], "n_chunks": 0}

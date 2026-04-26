@@ -17,6 +17,7 @@ export default function SearchPage() {
     if (!q.trim()) return;
     setBusy(true);
     setError(null);
+    setResults([]);
     try {
       const { results } = await api.search(q.trim());
       setResults(results ?? []);

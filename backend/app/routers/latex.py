@@ -84,7 +84,7 @@ def export_latex(body: LatexIn, user: CurrentUser = CurrentUserDep):
             .select("*")
             .eq("id", body.note_id)
             .eq("user_id", user.id)
-            .single()
+            .maybe_single()
             .execute()
             .data
         )
@@ -140,7 +140,7 @@ def export_latex(body: LatexIn, user: CurrentUser = CurrentUserDep):
     def replace_paper_tag(match: re.Match) -> str:
         pid = match.group(1)
         key = keys.get(pid)
-        return f"\\cite{{{key}}}" if key else ""
+        return f"\\cite{{{key}}}" if key else match.group(0)
 
     cited_text = re.sub(r"\[S(\d+)\]", replace_s_tag, text)
     cited_text = re.sub(r"\[paper:([0-9a-fA-F-]{36})\]", replace_paper_tag, cited_text)
@@ -183,12 +183,6 @@ def export_latex(body: LatexIn, user: CurrentUser = CurrentUserDep):
 
     bib_text = "".join(bib_entries)
 
-    payload = io.BytesIO(tex.encode("utf-8"))
-    headers = {
-        "Content-Disposition": f'attachment; filename="{_slug(title)}.tex"',
-        "X-Bib-Content": "see-tex-appendix",
-    }
-    # Return JSON if the client wants both files; default to streaming .tex.
     return {
         "tex": tex,
         "bib": bib_text,

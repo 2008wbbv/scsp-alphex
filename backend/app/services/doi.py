@@ -17,10 +17,19 @@ def fetch_doi(doi: str) -> DoiPaper:
     """Resolve a DOI via the Crossref REST API."""
     doi = doi.strip().replace("https://doi.org/", "").replace("http://doi.org/", "")
     url = f"https://api.crossref.org/works/{doi}"
-    with httpx.Client(timeout=20.0, headers={"Accept": "application/json"}) as client:
-        r = client.get(url)
-        r.raise_for_status()
-    msg = r.json().get("message", {})
+    try:
+        with httpx.Client(timeout=20.0, headers={"Accept": "application/json"}) as client:
+            r = client.get(url)
+            r.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise ValueError(f"DOI API error {exc.response.status_code} for {doi}") from exc
+    except httpx.RequestError as exc:
+        raise ValueError(f"DOI network error for {doi}: {exc}") from exc
+
+    try:
+        msg = r.json().get("message", {})
+    except Exception as exc:
+        raise ValueError(f"DOI API returned non-JSON response for {doi}") from exc
 
     title = (msg.get("title") or [""])[0]
     authors = [

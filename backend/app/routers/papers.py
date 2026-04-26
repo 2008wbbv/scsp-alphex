@@ -58,7 +58,7 @@ def get_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
         .select("*")
         .eq("id", paper_id)
         .eq("user_id", user.id)
-        .single()
+        .maybe_single()
         .execute()
         .data
     )
@@ -113,13 +113,28 @@ def add_tag(paper_id: str, body: TagIn, user: CurrentUser = CurrentUserDep):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Tag name required")
+
+    # Verify the paper belongs to this user before tagging.
+    paper = (
+        sb.table("papers")
+        .select("id")
+        .eq("id", paper_id)
+        .eq("user_id", user.id)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
     try:
         sb.table("tags").insert(
             {"paper_id": paper_id, "user_id": user.id, "name": name}
         ).execute()
-    except Exception:
-        # Likely a unique-constraint violation; ignore.
-        pass
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "unique" not in msg and "duplicate" not in msg:
+            raise HTTPException(status_code=500, detail="Failed to add tag") from exc
     return {"ok": True}
 
 

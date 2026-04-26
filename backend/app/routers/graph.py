@@ -51,10 +51,9 @@ def make_graph(body: GraphIn, user: CurrentUser = CurrentUserDep):
         "matplotlib.use('Agg')\n"
         "import os\n"
     )
-    with open(script_path, "w") as f:
-        f.write(preamble + code)
-
     try:
+        with open(script_path, "w") as f:
+            f.write(preamble + code)
         env = {
             "PATH": os.environ.get("PATH", ""),
             "OUT": out_path,

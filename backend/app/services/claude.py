@@ -26,6 +26,8 @@ def complete(
         temperature=temperature,
     )
     parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
+    if not parts:
+        raise ValueError("Claude returned an empty response (no text blocks)")
     return "".join(parts).strip()
 
 
@@ -106,7 +108,7 @@ def generate_chart_code(description: str) -> str:
     )
     # Strip stray fences if Claude ignored instructions.
     if code.startswith("```"):
-        code = code.strip("`")
+        code = code[3:]
         if code.lower().startswith("python"):
             code = code[len("python"):]
         code = code.strip()

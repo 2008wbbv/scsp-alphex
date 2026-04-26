@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..auth import CurrentUser, CurrentUserDep
@@ -10,24 +10,30 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 class SearchIn(BaseModel):
     query: str = Field(..., min_length=1)
-    k: int = 8
+    k: int = Field(default=8, ge=1, le=50)
     paper_id: str | None = None
 
 
 @router.post("")
 def search(body: SearchIn, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
-    embedding = embed_query(body.query)
+    try:
+        embedding = embed_query(body.query)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding service error: {exc}") from exc
 
-    matches = sb.rpc(
-        "match_chunks",
-        {
-            "query_embedding": embedding,
-            "match_user": user.id,
-            "match_count": body.k,
-            "filter_paper": body.paper_id,
-        },
-    ).execute().data or []
+    try:
+        matches = sb.rpc(
+            "match_chunks",
+            {
+                "query_embedding": embedding,
+                "match_user": user.id,
+                "match_count": body.k,
+                "filter_paper": body.paper_id,
+            },
+        ).execute().data or []
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Vector search error: {exc}") from exc
 
     if not matches:
         return {"results": []}

@@ -13,6 +13,8 @@ export default function AuthCallback() {
     // Supabase JS auto-handles the OAuth fragment on initialization.
     sb.auth.getSession().then(({ data }) => {
       router.replace(data.session ? "/library" : "/login");
+    }).catch(() => {
+      router.replace("/login");
     });
   }, [router]);
 

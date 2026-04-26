@@ -18,8 +18,11 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         model=settings.EMBED_MODEL,
         input=texts,
     )
-    return [d.embedding for d in resp.data]
+    # Sort by index — the API does not guarantee return order matches input order.
+    return [d.embedding for d in sorted(resp.data, key=lambda d: d.index)]
 
 
 def embed_query(text: str) -> list[float]:
+    if not text.strip():
+        raise ValueError("Cannot embed an empty string")
     return embed_texts([text])[0]

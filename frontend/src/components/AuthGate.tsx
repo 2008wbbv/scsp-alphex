@@ -17,9 +17,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       } else {
         setReady(true);
       }
+    }).catch(() => {
+      router.replace("/login");
     });
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      if (!session) router.replace("/login");
+      if (!session) {
+        router.replace("/login");
+      } else {
+        setReady(true);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, [router]);

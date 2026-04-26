@@ -20,7 +20,9 @@ export default function Sidebar() {
 
   useEffect(() => {
     const sb = supabaseBrowser();
-    sb.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    sb.auth.getUser()
+      .then(({ data }) => setEmail(data.user?.email ?? null))
+      .catch(() => setEmail(null));
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
       setEmail(session?.user?.email ?? null);
     });
@@ -28,8 +30,13 @@ export default function Sidebar() {
   }, []);
 
   async function signOut() {
-    await supabaseBrowser().auth.signOut();
-    router.replace("/login");
+    try {
+      await supabaseBrowser().auth.signOut();
+    } catch {
+      // ignore sign-out errors
+    } finally {
+      router.replace("/login");
+    }
   }
 
   return (

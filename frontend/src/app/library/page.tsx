@@ -13,14 +13,18 @@ type Filter = (typeof FILTERS)[number];
 export default function LibraryPage() {
   const [papers, setPapers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const { papers } = await api.listPapers();
       setPapers(papers ?? []);
+    } catch (err: any) {
+      setLoadError(err.message ?? "Failed to load papers");
     } finally {
       setLoading(false);
     }
@@ -76,6 +80,7 @@ export default function LibraryPage() {
           ))}
         </div>
 
+        {loadError && <div className="text-sm text-red-300">{loadError}</div>}
         {loading ? (
           <div className="text-muted">Loading…</div>
         ) : visible.length === 0 ? (

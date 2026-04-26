@@ -18,9 +18,14 @@ export default function PaperCard({
   const [tagDraft, setTagDraft] = useState("");
 
   async function updateStatus(s: string) {
+    const prev = status;
     setStatus(s);
-    await api.updatePaper(paper.id, { status: s });
-    onChange();
+    try {
+      await api.updatePaper(paper.id, { status: s });
+      onChange();
+    } catch {
+      setStatus(prev);
+    }
   }
 
   async function addTag(e: React.FormEvent) {
@@ -28,13 +33,21 @@ export default function PaperCard({
     const v = tagDraft.trim();
     if (!v) return;
     setTagDraft("");
-    await api.addTag(paper.id, v);
-    onChange();
+    try {
+      await api.addTag(paper.id, v);
+      onChange();
+    } catch {
+      setTagDraft(v);
+    }
   }
 
   async function removeTag(name: string) {
-    await api.removeTag(paper.id, name);
-    onChange();
+    try {
+      await api.removeTag(paper.id, name);
+      onChange();
+    } catch {
+      // no-op: card retains current state
+    }
   }
 
   return (

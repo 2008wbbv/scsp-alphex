@@ -16,10 +16,15 @@ export default function NotesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [n, p] = await Promise.all([api.listNotes(), api.listPapers()]);
-    setNotes(n.notes ?? []);
-    setPapers(p.papers ?? []);
-    setLoading(false);
+    try {
+      const [n, p] = await Promise.all([api.listNotes(), api.listPapers()]);
+      setNotes(n.notes ?? []);
+      setPapers(p.papers ?? []);
+    } catch {
+      // leave existing state; loading clears either way
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -29,36 +34,48 @@ export default function NotesPage() {
   async function create(e: React.FormEvent) {
     e.preventDefault();
     if (!content.trim()) return;
-    await api.createNote({
-      title: title.trim() || undefined,
-      content: content.trim(),
-      linked_paper_id: paperId || undefined,
-    });
-    setTitle("");
-    setContent("");
-    setPaperId("");
-    load();
+    try {
+      await api.createNote({
+        title: title.trim() || undefined,
+        content: content.trim(),
+        linked_paper_id: paperId || undefined,
+      });
+      setTitle("");
+      setContent("");
+      setPaperId("");
+      load();
+    } catch {
+      // leave form populated so the user can retry
+    }
   }
 
   async function exportTex(note: any) {
-    const out = await api.exportLatex({
-      title: note.title || "Research note",
-      body: note.content,
-      paper_ids: note.linked_paper_id ? [note.linked_paper_id] : [],
-      note_id: note.id,
-    });
-    const blob = new Blob([out.tex], { type: "application/x-tex" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = out.filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const out = await api.exportLatex({
+        title: note.title || "Research note",
+        body: note.content,
+        paper_ids: note.linked_paper_id ? [note.linked_paper_id] : [],
+        note_id: note.id,
+      });
+      const blob = new Blob([out.tex], { type: "application/x-tex" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = out.filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch {
+      // silently fail — no loading state to reset
+    }
   }
 
   async function del(id: string) {
-    await api.deleteNote(id);
-    load();
+    try {
+      await api.deleteNote(id);
+      load();
+    } catch {
+      // leave note in list; silently fail
+    }
   }
 
   return (

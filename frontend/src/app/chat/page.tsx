@@ -84,7 +84,7 @@ function ChatPageInner() {
           },
         ]);
       } else {
-        const history = messages.map((m) => ({ role: m.role, content: m.content }));
+        const history = messages.slice().map((m) => ({ role: m.role, content: m.content }));
         const { answer, citations } = await api.chat(
           text,
           history,
@@ -95,13 +95,13 @@ function ChatPageInner() {
           { id: uid(), role: "assistant", content: answer, citations },
         ]);
       }
-    } catch (e: any) {
+    } catch (err: any) {
       setMessages((m) => [
         ...m,
         {
           id: uid(),
           role: "assistant",
-          content: `⚠️ ${e.message ?? "Something went wrong"}`,
+          content: `⚠️ ${err.message ?? "Something went wrong"}`,
         },
       ]);
     } finally {

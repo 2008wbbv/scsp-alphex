@@ -14,10 +14,21 @@ async function authHeaders(extra: Record<string, string> = {}): Promise<Record<s
   };
 }
 
+async function safeFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (err: any) {
+    throw new Error(`Network error: ${err?.message ?? "request failed"}`);
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`${res.status} ${res.statusText} ${text}`.trim());
+  }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return null as T;
   }
   return (await res.json()) as T;
 }
@@ -25,19 +36,19 @@ async function handle<T>(res: Response): Promise<T> {
 export const api = {
   async listPapers() {
     const headers = await authHeaders();
-    const res = await fetch(`${API_URL}/papers`, { headers, cache: "no-store" });
+    const res = await safeFetch(`${API_URL}/papers`, { headers, cache: "no-store" });
     return handle<{ papers: any[] }>(res);
   },
 
   async getPaper(id: string) {
     const headers = await authHeaders();
-    const res = await fetch(`${API_URL}/papers/${id}`, { headers, cache: "no-store" });
+    const res = await safeFetch(`${API_URL}/papers/${id}`, { headers, cache: "no-store" });
     return handle<any>(res);
   },
 
   async updatePaper(id: string, payload: { status?: string; title?: string }) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/papers/${id}`, {
+    const res = await safeFetch(`${API_URL}/papers/${id}`, {
       method: "PATCH",
       headers,
       body: JSON.stringify(payload),
@@ -47,13 +58,13 @@ export const api = {
 
   async deletePaper(id: string) {
     const headers = await authHeaders();
-    const res = await fetch(`${API_URL}/papers/${id}`, { method: "DELETE", headers });
+    const res = await safeFetch(`${API_URL}/papers/${id}`, { method: "DELETE", headers });
     return handle<any>(res);
   },
 
   async addTag(paperId: string, name: string) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/papers/${paperId}/tags`, {
+    const res = await safeFetch(`${API_URL}/papers/${paperId}/tags`, {
       method: "POST",
       headers,
       body: JSON.stringify({ name }),
@@ -72,7 +83,7 @@ export const api = {
 
   async related(paperId: string) {
     const headers = await authHeaders();
-    const res = await fetch(`${API_URL}/papers/${paperId}/related`, { headers });
+    const res = await safeFetch(`${API_URL}/papers/${paperId}/related`, { headers });
     return handle<{ related: any[] }>(res);
   },
 
@@ -80,7 +91,7 @@ export const api = {
     const headers = await authHeaders();
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`${API_URL}/ingest/upload`, {
+    const res = await safeFetch(`${API_URL}/ingest/upload`, {
       method: "POST",
       headers,
       body: fd,
@@ -90,7 +101,7 @@ export const api = {
 
   async ingestArxiv(arxiv: string) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/ingest/arxiv`, {
+    const res = await safeFetch(`${API_URL}/ingest/arxiv`, {
       method: "POST",
       headers,
       body: JSON.stringify({ arxiv }),
@@ -100,7 +111,7 @@ export const api = {
 
   async ingestDoi(doi: string) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/ingest/doi`, {
+    const res = await safeFetch(`${API_URL}/ingest/doi`, {
       method: "POST",
       headers,
       body: JSON.stringify({ doi }),
@@ -110,7 +121,7 @@ export const api = {
 
   async search(query: string, paperId?: string) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/search`, {
+    const res = await safeFetch(`${API_URL}/search`, {
       method: "POST",
       headers,
       body: JSON.stringify({ query, k: 8, paper_id: paperId ?? null }),
@@ -120,7 +131,7 @@ export const api = {
 
   async chat(message: string, history: { role: string; content: string }[], paperId?: string) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/chat`, {
+    const res = await safeFetch(`${API_URL}/chat`, {
       method: "POST",
       headers,
       body: JSON.stringify({ message, history, paper_id: paperId ?? null }),
@@ -144,7 +155,7 @@ export const api = {
     linked_chunk_id?: string | null;
   }) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/notes`, {
+    const res = await safeFetch(`${API_URL}/notes`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -154,7 +165,7 @@ export const api = {
 
   async updateNote(id: string, payload: any) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/notes/${id}`, {
+    const res = await safeFetch(`${API_URL}/notes/${id}`, {
       method: "PATCH",
       headers,
       body: JSON.stringify(payload),
@@ -164,13 +175,13 @@ export const api = {
 
   async deleteNote(id: string) {
     const headers = await authHeaders();
-    const res = await fetch(`${API_URL}/notes/${id}`, { method: "DELETE", headers });
+    const res = await safeFetch(`${API_URL}/notes/${id}`, { method: "DELETE", headers });
     return handle<any>(res);
   },
 
   async makeGraph(description: string) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/graph`, {
+    const res = await safeFetch(`${API_URL}/graph`, {
       method: "POST",
       headers,
       body: JSON.stringify({ description }),
@@ -185,7 +196,7 @@ export const api = {
     note_id?: string | null;
   }) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
-    const res = await fetch(`${API_URL}/latex`, {
+    const res = await safeFetch(`${API_URL}/latex`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),

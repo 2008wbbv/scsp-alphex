@@ -21,16 +21,28 @@ _NS = {"a": "http://www.w3.org/2005/Atom"}
 
 def normalize_arxiv_id(value: str) -> str | None:
     """Accept arxiv URLs or bare ids; return the canonical id (no version)."""
+    if not value or not isinstance(value, str):
+        return None
     m = _ARXIV_ID.search(value.strip())
     return m.group(1) if m else None
 
 
 def fetch_arxiv(arxiv_id: str) -> ArxivPaper:
     url = f"http://export.arxiv.org/api/query?id_list={arxiv_id}"
-    with httpx.Client(timeout=20.0) as client:
-        r = client.get(url)
-        r.raise_for_status()
-    root = ET.fromstring(r.text)
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            r = client.get(url)
+            r.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise ValueError(f"arXiv API error {exc.response.status_code} for {arxiv_id}") from exc
+    except httpx.RequestError as exc:
+        raise ValueError(f"arXiv network error for {arxiv_id}: {exc}") from exc
+
+    try:
+        root = ET.fromstring(r.text)
+    except ET.ParseError as exc:
+        raise ValueError(f"arXiv returned malformed XML for {arxiv_id}") from exc
+
     entry = root.find("a:entry", _NS)
     if entry is None:
         raise ValueError(f"arXiv returned no entry for {arxiv_id}")
@@ -55,7 +67,14 @@ def fetch_arxiv(arxiv_id: str) -> ArxivPaper:
 
 
 def download_pdf(url: str) -> bytes:
-    with httpx.Client(timeout=60.0, follow_redirects=True) as client:
-        r = client.get(url)
-        r.raise_for_status()
-        return r.content
+    try:
+        with httpx.Client(timeout=60.0, follow_redirects=True) as client:
+            r = client.get(url)
+            r.raise_for_status()
+            if not r.content:
+                raise ValueError(f"Empty PDF response from {url}")
+            return r.content
+    except httpx.HTTPStatusError as exc:
+        raise ValueError(f"PDF download failed with status {exc.response.status_code}") from exc
+    except httpx.RequestError as exc:
+        raise ValueError(f"PDF download network error: {exc}") from exc

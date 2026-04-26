@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..auth import CurrentUser, CurrentUserDep
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 class ChatIn(BaseModel):
     message: str = Field(..., min_length=1)
     history: list[dict] = []  # prior [{role, content}, ...]
-    k: int = 6
+    k: int = Field(default=6, ge=1, le=20)
     paper_id: str | None = None
 
 
@@ -43,17 +43,23 @@ def _format_citations(matches: list[dict], papers_by_id: dict[str, dict]) -> tup
 @router.post("")
 def chat(body: ChatIn, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
-    embedding = embed_query(body.message)
+    try:
+        embedding = embed_query(body.message)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding service error: {exc}") from exc
 
-    matches = sb.rpc(
-        "match_chunks",
-        {
-            "query_embedding": embedding,
-            "match_user": user.id,
-            "match_count": body.k,
-            "filter_paper": body.paper_id,
-        },
-    ).execute().data or []
+    try:
+        matches = sb.rpc(
+            "match_chunks",
+            {
+                "query_embedding": embedding,
+                "match_user": user.id,
+                "match_count": body.k,
+                "filter_paper": body.paper_id,
+            },
+        ).execute().data or []
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Vector search error: {exc}") from exc
 
     paper_ids = list({m["paper_id"] for m in matches})
     papers = []
@@ -77,7 +83,10 @@ def chat(body: ChatIn, user: CurrentUser = CurrentUserDep):
         if h.get("role") in {"user", "assistant"} and h.get("content")
     ][-8:]
 
-    answer = chat_with_context(body.message, blocks, safe_history)
+    try:
+        answer = chat_with_context(body.message, blocks, safe_history)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM service error: {exc}") from exc
 
     # Persist messages (best effort).
     try:

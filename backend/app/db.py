@@ -1,7 +1,11 @@
+from functools import lru_cache
+
 from supabase import create_client, Client
+
 from .config import get_settings
 
 
+@lru_cache(maxsize=1)
 def get_supabase() -> Client:
     """Service-role Supabase client for backend writes/reads.
 

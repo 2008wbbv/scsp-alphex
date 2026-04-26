@@ -18,13 +18,17 @@ export default function LoginPage() {
 
   async function signInGoogle() {
     setLoading(true);
-    const sb = supabaseBrowser();
-    await sb.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const sb = supabaseBrowser();
+      await sb.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+    } catch {
+      setLoading(false);
+    }
   }
 
   return (

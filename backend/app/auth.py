@@ -27,10 +27,10 @@ def get_current_user(authorization: str | None = Header(default=None)) -> Curren
             algorithms=["HS256"],
             audience="authenticated",
         )
-    except jwt.PyJWTError as exc:
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {exc}",
+            detail="Invalid or expired token",
         )
 
     user_id = payload.get("sub")

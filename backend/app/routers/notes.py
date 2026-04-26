@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -34,7 +36,7 @@ def list_notes(user: CurrentUser = CurrentUserDep, paper_id: str | None = None):
 @router.post("")
 def create_note(body: NoteIn, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
-    row = (
+    result = (
         sb.table("notes")
         .insert(
             {
@@ -46,9 +48,10 @@ def create_note(body: NoteIn, user: CurrentUser = CurrentUserDep):
             }
         )
         .execute()
-        .data[0]
     )
-    return row
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create note")
+    return result.data[0]
 
 
 @router.patch("/{note_id}")
@@ -57,7 +60,7 @@ def update_note(note_id: str, body: NoteUpdate, user: CurrentUser = CurrentUserD
     payload = {k: v for k, v in body.model_dump().items() if v is not None}
     if not payload:
         return {"ok": True}
-    payload["updated_at"] = "now()"
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
     sb.table("notes").update(payload).eq("id", note_id).eq("user_id", user.id).execute()
     return {"ok": True}
 
@@ -77,7 +80,7 @@ def get_note(note_id: str, user: CurrentUser = CurrentUserDep):
         .select("*")
         .eq("id", note_id)
         .eq("user_id", user.id)
-        .single()
+        .maybe_single()
         .execute()
         .data
     )

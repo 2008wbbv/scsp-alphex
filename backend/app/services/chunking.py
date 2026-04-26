@@ -40,10 +40,11 @@ def chunk_pages(parsed: ParsedPDF, target_chars: int = 1400, overlap: int = 200)
             end = min(start + target_chars, len(text))
             # Try to break at a sentence boundary if one exists nearby.
             if end < len(text):
-                window = text[end - 100 : end + 100]
+                window_start = max(0, end - 100)
+                window = text[window_start : end + 100]
                 period = window.rfind(". ")
                 if period != -1:
-                    end = end - 100 + period + 1
+                    end = window_start + period + 1
             content = text[start:end].strip()
             if content:
                 chunks.append(Chunk(content=content, chunk_index=idx, page=page.page))

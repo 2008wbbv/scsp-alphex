@@ -20,11 +20,13 @@ export default function PaperPage({ params }: { params: { id: string } }) {
       const [p, r, n] = await Promise.all([
         api.getPaper(params.id),
         api.related(params.id).catch(() => ({ related: [] })),
-        api.listNotes(params.id),
+        api.listNotes(params.id).catch(() => ({ notes: [] })),
       ]);
-      setPaper(p);
+      setPaper(p ?? null);
       setRelated(r.related ?? []);
       setNotes(n.notes ?? []);
+    } catch {
+      setPaper(null);
     } finally {
       setLoading(false);
     }
@@ -38,8 +40,12 @@ export default function PaperPage({ params }: { params: { id: string } }) {
     const content = draft.trim();
     if (!content) return;
     setDraft("");
-    await api.createNote({ content, linked_paper_id: params.id });
-    load();
+    try {
+      await api.createNote({ content, linked_paper_id: params.id });
+      load();
+    } catch {
+      setDraft(content);
+    }
   }
 
   async function exportTex() {
@@ -61,7 +67,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
       a.href = url;
       a.download = out.filename;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
     } finally {
       setExporting(false);
     }
@@ -233,13 +239,21 @@ function NoteRow({ note, onChange }: { note: any; onChange: () => void }) {
   const [draft, setDraft] = useState(note.content);
 
   async function save() {
-    await api.updateNote(note.id, { content: draft });
-    setEditing(false);
-    onChange();
+    try {
+      await api.updateNote(note.id, { content: draft });
+      setEditing(false);
+      onChange();
+    } catch {
+      // keep edit mode open so the user can retry
+    }
   }
   async function del() {
-    await api.deleteNote(note.id);
-    onChange();
+    try {
+      await api.deleteNote(note.id);
+      onChange();
+    } catch {
+      // leave note in list; silently fail
+    }
   }
 
   return (
