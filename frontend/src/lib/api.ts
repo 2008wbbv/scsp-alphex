@@ -30,7 +30,7 @@ async function handle<T>(res: Response): Promise<T> {
     if (res.status >= 500) throw new Error("Server error — please try again later.");
     try {
       const json = JSON.parse(text);
-      throw new Error(json.detail ?? json.message ?? text || res.statusText);
+      throw new Error(json.detail ?? json.message ?? (text || res.statusText));
     } catch {
       throw new Error(text || res.statusText || `Request failed (${res.status})`);
     }
