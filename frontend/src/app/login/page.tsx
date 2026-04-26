@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, BookOpen, MessageSquare, Search, Network, BarChart3 } from "lucide-react";
+import CornerFrameScrambleText from "@/components/ui/corner-frame-scramble-text";
 
 import { supabaseBrowser } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -111,10 +112,12 @@ export default function LoginPage() {
 
         <div className="space-y-8">
           <div>
-            <h1 className="text-4xl font-bold text-white leading-tight">
-              Research at the<br />speed of thought.
-            </h1>
-            <p className="mt-3 text-muted text-base">
+            <CornerFrameScrambleText
+              value="Research at the speed of thought."
+              as="h1"
+              className="text-4xl font-bold text-white leading-tight"
+            />
+            <p className="mt-6 text-muted text-base">
               Import papers, search semantically, and let an AI assistant grounded in your library answer your questions.
             </p>
           </div>

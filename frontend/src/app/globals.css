@@ -4,6 +4,7 @@
 
 :root {
   color-scheme: dark;
+  --foreground: #e8e8ee;
 }
 
 html,
