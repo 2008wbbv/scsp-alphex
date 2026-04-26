@@ -10,12 +10,18 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const sb = supabaseBrowser();
-    // Supabase JS auto-handles the OAuth fragment on initialization.
-    sb.auth.getSession().then(({ data }) => {
-      router.replace(data.session ? "/library" : "/login");
-    }).catch(() => {
-      router.replace("/login");
-    });
+    const code = new URLSearchParams(window.location.search).get("code");
+    const exchange = code
+      ? sb.auth.exchangeCodeForSession(code)
+      : Promise.resolve(null);
+    exchange
+      .then(() => sb.auth.getSession())
+      .then(({ data }) => {
+        router.replace(data.session ? "/library" : "/login");
+      })
+      .catch(() => {
+        router.replace("/login");
+      });
   }, [router]);
 
   return (
