@@ -82,7 +82,7 @@ export const api = {
 
   async removeTag(paperId: string, name: string) {
     const headers = await authHeaders();
-    const res = await fetch(
+    const res = await safeFetch(
       `${API_URL}/papers/${paperId}/tags/${encodeURIComponent(name)}`,
       { method: "DELETE", headers }
     );
@@ -158,7 +158,7 @@ export const api = {
     const url = paperId
       ? `${API_URL}/notes?paper_id=${paperId}`
       : `${API_URL}/notes`;
-    const res = await fetch(url, { headers, cache: "no-store" });
+    const res = await safeFetch(url, { headers, cache: "no-store" });
     return handle<{ notes: any[] }>(res);
   },
 

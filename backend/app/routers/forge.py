@@ -65,13 +65,15 @@ def create_draft(body: DraftIn, user: CurrentUser = CurrentUserDep):
                 sec = {**sec, "type": "text", "content": f"[Chart: {sec['content']}]"}
         enriched.append(sec)
 
-    result = (
+    rows = (
         sb.table("forge_drafts")
         .insert({"user_id": user.id, "title": body.title, "notes": body.notes, "sections": enriched})
         .execute()
-        .data[0]
+        .data
     )
-    return result
+    if not rows:
+        raise HTTPException(status_code=500, detail="Failed to save draft")
+    return rows[0]
 
 
 @router.get("/drafts")
