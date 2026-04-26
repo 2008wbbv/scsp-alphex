@@ -157,7 +157,7 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
         or []
     )
     if not chunks:
-        raise HTTPException(status_code=422, detail="No text chunks found for this paper. Import it first.")
+        raise HTTPException(status_code=422, detail="No text found for this paper. DOI papers only store the abstract — delete and re-import this paper to pick up the fix.")
 
     texts = [c["content"] for c in chunks]
     try:

@@ -160,8 +160,8 @@ def ingest_arxiv(body: ArxivIn, user: CurrentUser = CurrentUserDep):
 
 @router.post("/doi")
 def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
-    """DOI ingest stores metadata only — many publishers don't allow PDF
-    download from a DOI alone. Useful for tracking references."""
+    """DOI ingest fetches metadata from Crossref and stores the abstract as
+    searchable chunks. Full PDF is not available for most publisher DOIs."""
     try:
         meta = doi_svc.fetch_doi(body.doi)
     except HTTPException:
@@ -189,4 +189,37 @@ def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
     )
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create paper record")
-    return {**result.data[0], "n_chunks": 0}
+    paper = result.data[0]
+    paper_id = paper["id"]
+
+    # Store abstract as a searchable chunk so chat/search/charts work.
+    n_chunks = 0
+    text = "\n\n".join(filter(None, [meta.abstract]))
+    if text.strip():
+        try:
+            vectors = embed_texts([text])
+            sb.table("chunks").insert({
+                "paper_id": paper_id,
+                "user_id": user.id,
+                "content": text,
+                "embedding": vectors[0],
+                "chunk_index": 0,
+                "page": None,
+            }).execute()
+            n_chunks = 1
+        except Exception:
+            # Embedding unavailable — store chunk without vector so text is still accessible.
+            try:
+                sb.table("chunks").insert({
+                    "paper_id": paper_id,
+                    "user_id": user.id,
+                    "content": text,
+                    "embedding": None,
+                    "chunk_index": 0,
+                    "page": None,
+                }).execute()
+                n_chunks = 1
+            except Exception:
+                pass
+
+    return {**paper, "n_chunks": n_chunks}
