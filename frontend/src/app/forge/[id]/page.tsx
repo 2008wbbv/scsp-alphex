@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Link2, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { Check, Copy, Download, Link2, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
@@ -20,7 +20,6 @@ export default function ForgeDraftPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  const [draft, setDraft] = useState<any | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [title, setTitle] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -30,12 +29,18 @@ export default function ForgeDraftPage() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Refs always hold the latest values so the debounced save never uses stale closures.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestSections = useRef<Section[]>([]);
+  const latestTitle = useRef<string>("");
+
+  useEffect(() => { latestSections.current = sections; }, [sections]);
+  useEffect(() => { latestTitle.current = title; }, [title]);
 
   useEffect(() => {
     api.getForgeDraft(id)
       .then((d) => {
-        setDraft(d);
         setTitle(d.title);
         setSections(d.sections ?? []);
         if (d.share_token) {
@@ -46,14 +51,14 @@ export default function ForgeDraftPage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  function scheduleSave(newSections: Section[], newTitle?: string) {
+  function scheduleSave() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaving(true);
       try {
         await api.updateForgeDraft(id, {
-          sections: newSections,
-          title: newTitle ?? title,
+          sections: latestSections.current,
+          title: latestTitle.current,
         });
       } catch {}
       setSaving(false);
@@ -61,41 +66,45 @@ export default function ForgeDraftPage() {
   }
 
   function updateSection(secId: string, content: string) {
-    const updated = sections.map((s) => s.id === secId ? { ...s, content } : s);
-    setSections(updated);
-    scheduleSave(updated);
+    setSections((prev) => {
+      const updated = prev.map((s) => s.id === secId ? { ...s, content } : s);
+      latestSections.current = updated;
+      return updated;
+    });
+    scheduleSave();
   }
 
   function saveComment(secId: string) {
-    const updated = sections.map((s) => s.id === secId ? { ...s, comment: commentDraft } : s);
-    setSections(updated);
+    const val = commentDraft;
+    setSections((prev) => {
+      const updated = prev.map((s) => s.id === secId ? { ...s, comment: val } : s);
+      latestSections.current = updated;
+      return updated;
+    });
     setCommentingId(null);
     setCommentDraft("");
-    scheduleSave(updated);
+    scheduleSave();
   }
 
   function deleteSection(secId: string) {
-    const updated = sections.filter((s) => s.id !== secId);
-    setSections(updated);
-    scheduleSave(updated);
+    setSections((prev) => {
+      const updated = prev.filter((s) => s.id !== secId);
+      latestSections.current = updated;
+      return updated;
+    });
+    scheduleSave();
   }
 
   function updateTitle(v: string) {
     setTitle(v);
-    const updated = sections;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      setSaving(true);
-      try { await api.updateForgeDraft(id, { sections: updated, title: v }); } catch {}
-      setSaving(false);
-    }, 800);
+    latestTitle.current = v;
+    scheduleSave();
   }
 
   async function share() {
     try {
       const { share_token } = await api.shareForgeDraft(id);
-      const url = `${window.location.origin}/forge/shared/${share_token}`;
-      setShareUrl(url);
+      setShareUrl(`${window.location.origin}/forge/shared/${share_token}`);
     } catch {}
   }
 
@@ -104,6 +113,30 @@ export default function ForgeDraftPage() {
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function exportMarkdown() {
+    const lines: string[] = [`# ${latestTitle.current || "Draft"}`, ""];
+    for (const sec of latestSections.current) {
+      if (sec.type === "heading") {
+        lines.push(`## ${sec.content}`, "");
+      } else if (sec.type === "chart") {
+        lines.push(`### Chart: ${sec.content}`, "");
+        if (sec.comment) lines.push(`> ${sec.comment}`, "");
+        lines.push("");
+      } else {
+        lines.push(sec.content, "");
+        if (sec.comment) lines.push(`> ${sec.comment}`, "");
+        lines.push("");
+      }
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(latestTitle.current || "draft").replace(/\s+/g, "-")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   if (loading) {
@@ -127,6 +160,14 @@ export default function ForgeDraftPage() {
           />
           <div className="flex shrink-0 items-center gap-2 text-xs text-muted">
             {saving && <span className="animate-pulse">saving…</span>}
+            <button
+              onClick={exportMarkdown}
+              className="flex items-center gap-1 chip hover:text-fg hover:border-border/60"
+              title="Export as Markdown"
+            >
+              <Download size={11} />
+              Export
+            </button>
             {shareUrl ? (
               <button
                 onClick={copyLink}
@@ -200,9 +241,16 @@ function SectionBlock({
   onCommentCancel: () => void;
   onDelete: () => void;
 }) {
+  function downloadChart() {
+    if (!sec.image_base64) return;
+    const a = document.createElement("a");
+    a.href = `data:image/png;base64,${sec.image_base64}`;
+    a.download = `${sec.content.replace(/\s+/g, "-") || "chart"}.png`;
+    a.click();
+  }
+
   return (
     <div className="group relative">
-      {/* Section content */}
       {sec.type === "heading" ? (
         editing ? (
           <input
@@ -217,7 +265,19 @@ function SectionBlock({
         )
       ) : sec.type === "chart" ? (
         <div className="card space-y-2">
-          <div className="text-sm font-medium text-fg">{sec.content}</div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium text-fg">{sec.content}</div>
+            {sec.image_base64 && (
+              <button
+                onClick={downloadChart}
+                className="chip hover:text-fg hover:border-border/60 text-[10px] flex items-center gap-1"
+                title="Download PNG"
+              >
+                <Download size={10} />
+                PNG
+              </button>
+            )}
+          </div>
           {sec.image_base64 && (
             <img
               src={`data:image/png;base64,${sec.image_base64}`}
@@ -247,7 +307,6 @@ function SectionBlock({
         )
       )}
 
-      {/* Comment */}
       {sec.comment && !commenting && (
         <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-border bg-panel2 px-3 py-2">
           <MessageSquare size={11} className="mt-0.5 shrink-0 text-muted" />
@@ -272,7 +331,6 @@ function SectionBlock({
         </div>
       )}
 
-      {/* Action buttons */}
       <div className="absolute right-0 top-0 hidden items-center gap-1 group-hover:flex">
         {sec.type !== "chart" && (
           <button onClick={onEdit} className="chip hover:text-fg hover:border-border/60" title="Edit">

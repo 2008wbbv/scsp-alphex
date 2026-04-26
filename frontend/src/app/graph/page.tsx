@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, BookOpen, Image, Network, X } from "lucide-react";
+import { BarChart3, BookOpen, Download, Image, Network, X } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
@@ -231,7 +231,18 @@ function FigureLibrary({ paper }: { paper: any }) {
         <div className="grid gap-4 md:grid-cols-2">
           {charts.map((c, i) => (
             <div key={i} className="card space-y-2">
-              <div className="text-sm font-medium text-fg">{c.title}</div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-sm font-medium text-fg">{c.title}</div>
+                <a
+                  href={`data:image/png;base64,${c.image_base64}`}
+                  download={`${(c.title || "chart").replace(/\s+/g, "-")}.png`}
+                  className="chip hover:text-fg hover:border-border/60 flex shrink-0 items-center gap-1 text-[10px]"
+                  title="Download PNG"
+                >
+                  <Download size={10} />
+                  PNG
+                </a>
+              </div>
               <p className="text-xs text-muted">{c.explanation}</p>
               {c.sources && (
                 <p className="text-[11px] text-muted/70 italic">
@@ -317,6 +328,16 @@ function GenerateCharts({ paper }: { paper: any | null }) {
 
       {result && (
         <div className="card animate-fade-up space-y-3">
+          <div className="flex justify-end">
+            <a
+              href={`data:image/png;base64,${result.image_base64}`}
+              download="chart.png"
+              className="chip hover:text-fg hover:border-border/60 flex items-center gap-1 text-[10px]"
+            >
+              <Download size={10} />
+              Download PNG
+            </a>
+          </div>
           <img
             src={`data:image/png;base64,${result.image_base64}`}
             alt="generated chart"

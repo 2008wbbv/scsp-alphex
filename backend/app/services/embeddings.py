@@ -25,4 +25,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 def embed_query(text: str) -> list[float]:
     if not text.strip():
         raise ValueError("Cannot embed an empty string")
-    return embed_texts([text])[0]
+    result = embed_texts([text])
+    if not result:
+        raise ValueError("Embedding service returned empty result")
+    return result[0]

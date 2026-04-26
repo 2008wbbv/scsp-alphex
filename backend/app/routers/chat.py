@@ -90,21 +90,53 @@ def chat(body: ChatIn, user: CurrentUser = CurrentUserDep):
         except Exception:
             pass
 
-    # Fallback when vector search returns nothing.
+    # When scoped to a paper, always blend in direct chunks so the model
+    # sees actual paper text even if vector similarity is low.
+    if body.paper_id:
+        try:
+            direct = (
+                sb.table("chunks")
+                .select("id,paper_id,content,chunk_index,page")
+                .eq("paper_id", body.paper_id)
+                .eq("user_id", user.id)
+                .order("chunk_index")
+                .limit(10)
+                .execute()
+                .data
+                or []
+            )
+            direct_rows = [
+                {
+                    "chunk_id": r["id"],
+                    "paper_id": r["paper_id"],
+                    "content": r["content"],
+                    "chunk_index": r["chunk_index"],
+                    "page": r.get("page"),
+                    "similarity": 0.0,
+                }
+                for r in direct
+            ]
+            # Merge: vector hits first (higher similarity), then any direct
+            # chunks not already included, up to 12 total.
+            seen_ids = {m.get("chunk_id") for m in matches}
+            for row in direct_rows:
+                if row["chunk_id"] not in seen_ids:
+                    matches.append(row)
+                    seen_ids.add(row["chunk_id"])
+            matches = matches[:12]
+        except Exception:
+            pass
+
+    # Fallback when vector search returns nothing (library-wide).
     if not matches:
         try:
             q = (
                 sb.table("chunks")
                 .select("id,paper_id,content,chunk_index,page")
                 .eq("user_id", user.id)
+                .ilike("content", f"%{body.message[:80]}%")
+                .limit(body.k)
             )
-            if body.paper_id:
-                # Scoped to one paper — return all its chunks.
-                q = q.eq("paper_id", body.paper_id).order("chunk_index").limit(body.k)
-            else:
-                # Library-wide — keyword fallback.
-                q = q.ilike("content", f"%{body.message[:80]}%").limit(body.k)
-
             rows = q.execute().data or []
             matches = [
                 {
