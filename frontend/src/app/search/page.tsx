@@ -14,7 +14,7 @@ export default function SearchPage() {
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
-    if (!q.trim()) return;
+    if (!q.trim()) { setError("Enter a search query first."); return; }
     setBusy(true);
     setError(null);
     setResults([]);

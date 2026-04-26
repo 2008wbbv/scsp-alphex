@@ -18,12 +18,14 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     const sb = supabaseBrowser();
     sb.auth.getUser()
       .then(({ data }) => setEmail(data.user?.email ?? null))
-      .catch(() => setEmail(null));
+      .catch(() => setEmail(null))
+      .finally(() => setAuthReady(true));
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
       setEmail(session?.user?.email ?? null);
     });
@@ -73,7 +75,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto border-t border-border pt-4">
-        {email ? (
+        {!authReady ? null : email ? (
           <>
             <div className="truncate text-xs text-muted" title={email}>
               {email}

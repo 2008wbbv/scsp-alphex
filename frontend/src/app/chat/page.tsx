@@ -123,13 +123,13 @@ function ChatPageInner() {
           <div className="flex gap-1">
             <button
               onClick={() => setMode("chat")}
-              className={`chip ${mode === "chat" ? "border-accent text-white" : ""}`}
+              className={`chip ${mode === "chat" ? "border-accent bg-accent/20 text-white" : "hover:text-white"}`}
             >
               Chat
             </button>
             <button
               onClick={() => setMode("graph")}
-              className={`chip ${mode === "graph" ? "border-accent text-white" : ""}`}
+              className={`chip ${mode === "graph" ? "border-accent bg-accent/20 text-white" : "hover:text-white"}`}
             >
               Graph
             </button>

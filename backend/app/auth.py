@@ -25,9 +25,11 @@ def get_current_user(authorization: str | None = Header(default=None)) -> Curren
             token,
             settings.SUPABASE_JWT_SECRET,
             algorithms=["HS256"],
-            audience="authenticated",
+            options={"verify_aud": False},
         )
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as exc:
+        import logging
+        logging.getLogger(__name__).error("JWT decode failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

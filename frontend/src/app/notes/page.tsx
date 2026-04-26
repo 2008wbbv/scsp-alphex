@@ -13,6 +13,7 @@ export default function NotesPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [paperId, setPaperId] = useState<string>("");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,7 +34,8 @@ export default function NotesPage() {
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
-    if (!content.trim()) return;
+    setSaveError(null);
+    if (!content.trim()) { setSaveError("Note content is required."); return; }
     try {
       await api.createNote({
         title: title.trim() || undefined,
@@ -44,8 +46,8 @@ export default function NotesPage() {
       setContent("");
       setPaperId("");
       load();
-    } catch {
-      // leave form populated so the user can retry
+    } catch (err: any) {
+      setSaveError(err.message ?? "Failed to save note.");
     }
   }
 
@@ -118,6 +120,7 @@ export default function NotesPage() {
             </select>
             <button className="btn btn-primary ml-auto">Save note</button>
           </div>
+          {saveError && <div className="text-sm text-red-300">{saveError}</div>}
         </form>
 
         {loading ? (

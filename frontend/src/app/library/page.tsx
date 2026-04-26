@@ -72,7 +72,7 @@ export default function LibraryPage() {
               key={f}
               onClick={() => setFilter(f)}
               className={`chip uppercase ${
-                filter === f ? "border-accent text-white" : ""
+                filter === f ? "border-accent bg-accent/20 text-white" : "hover:text-white"
               }`}
             >
               {f}

@@ -110,7 +110,7 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
               onChange={(e) => setDoi(e.target.value)}
               placeholder="10.1038/nature14539"
             />
-            <button type="submit" className="btn" disabled={busy !== null}>
+            <button type="submit" className="btn btn-primary" disabled={busy !== null}>
               {busy === "doi" ? "…" : "Add"}
             </button>
           </div>
