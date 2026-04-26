@@ -50,6 +50,51 @@ def list_papers(user: CurrentUser = CurrentUserDep):
     return {"papers": papers}
 
 
+@router.get("/graph")
+def paper_graph(user: CurrentUser = CurrentUserDep):
+    sb = get_supabase()
+    papers = (
+        sb.table("papers")
+        .select("id,title,authors,year,status")
+        .eq("user_id", user.id)
+        .execute()
+        .data
+        or []
+    )
+    nodes = [
+        {
+            "id": p["id"],
+            "title": p["title"],
+            "authors": p.get("authors") or [],
+            "year": p.get("year"),
+            "status": p.get("status", "unread"),
+        }
+        for p in papers
+    ]
+    edges: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for p in papers:
+        rows = sb.rpc(
+            "related_papers",
+            {"source_paper": p["id"], "match_user": user.id, "match_count": 5},
+        ).execute().data or []
+        for r in rows:
+            if r["similarity"] < 0.6:
+                continue
+            key = (min(p["id"], r["paper_id"]), max(p["id"], r["paper_id"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            edges.append(
+                {
+                    "source": p["id"],
+                    "target": r["paper_id"],
+                    "similarity": round(r["similarity"], 3),
+                }
+            )
+    return {"nodes": nodes, "edges": edges}
+
+
 @router.get("/{paper_id}")
 def get_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()

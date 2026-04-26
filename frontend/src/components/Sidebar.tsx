@@ -11,6 +11,7 @@ const NAV = [
   { href: "/chat", label: "Assistant", icon: "🤖" },
   { href: "/search", label: "Search", icon: "🔎" },
   { href: "/notes", label: "Notes", icon: "📝" },
+  { href: "/graph", label: "Graph", icon: "🕸️" },
 ];
 
 export default function Sidebar() {

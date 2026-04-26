@@ -87,6 +87,12 @@ export const api = {
     return handle<{ related: any[] }>(res);
   },
 
+  async getPaperGraph() {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/papers/graph`, { headers });
+    return handle<{ nodes: any[]; edges: any[] }>(res);
+  },
+
   async uploadPdf(file: File) {
     const headers = await authHeaders();
     const fd = new FormData();
