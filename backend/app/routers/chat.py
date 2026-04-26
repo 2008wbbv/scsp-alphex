@@ -43,23 +43,23 @@ def _format_citations(matches: list[dict], papers_by_id: dict[str, dict]) -> tup
 @router.post("")
 def chat(body: ChatIn, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
+    matches: list[dict] = []
     try:
         embedding = embed_query(body.message)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Embedding service error: {exc}") from exc
-
-    try:
-        matches = sb.rpc(
-            "match_chunks",
-            {
-                "query_embedding": embedding,
-                "match_user": user.id,
-                "match_count": body.k,
-                "filter_paper": body.paper_id,
-            },
-        ).execute().data or []
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Vector search error: {exc}") from exc
+        try:
+            matches = sb.rpc(
+                "match_chunks",
+                {
+                    "query_embedding": embedding,
+                    "match_user": user.id,
+                    "match_count": body.k,
+                    "filter_paper": body.paper_id,
+                },
+            ).execute().data or []
+        except Exception:
+            matches = []
+    except Exception:
+        matches = []
 
     paper_ids = list({m["paper_id"] for m in matches})
     papers = []
