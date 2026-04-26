@@ -28,12 +28,12 @@ async function handle<T>(res: Response): Promise<T> {
     if (res.status === 401) throw new Error("Session expired — please sign in again.");
     if (res.status === 403) throw new Error("You don't have permission to do that.");
     if (res.status >= 500) throw new Error("Server error — please try again later.");
+    let message = text || res.statusText || `Request failed (${res.status})`;
     try {
       const json = JSON.parse(text);
-      throw new Error(json.detail ?? json.message ?? (text || res.statusText));
-    } catch {
-      throw new Error(text || res.statusText || `Request failed (${res.status})`);
-    }
+      message = json.detail ?? json.message ?? message;
+    } catch {}
+    throw new Error(message);
   }
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return null as T;
