@@ -5,6 +5,7 @@ from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
 from ..services.claude import chat_with_context
 from ..services.embeddings import embed_query
+from .papers import _build_chunks
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -62,6 +63,32 @@ def chat(body: ChatIn, user: CurrentUser = CurrentUserDep):
         ).execute().data or []
     except Exception:
         matches = []
+
+    # If scoped to a paper and still no matches, auto-index then retry.
+    if not matches and body.paper_id:
+        try:
+            paper = (
+                sb.table("papers")
+                .select("id,title,abstract,source_type,source_url,storage_path")
+                .eq("id", body.paper_id)
+                .eq("user_id", user.id)
+                .maybe_single()
+                .execute()
+                .data
+            )
+            if paper:
+                _build_chunks(sb, body.paper_id, user.id, paper)
+                matches = sb.rpc(
+                    "match_chunks",
+                    {
+                        "query_embedding": embedding,
+                        "match_user": user.id,
+                        "match_count": body.k,
+                        "filter_paper": body.paper_id,
+                    },
+                ).execute().data or []
+        except Exception:
+            pass
 
     # Fallback when vector search returns nothing.
     if not matches:

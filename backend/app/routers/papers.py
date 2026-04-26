@@ -163,6 +163,73 @@ def delete_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     return {"ok": True}
 
 
+def _build_chunks(sb, paper_id: str, user_id: str, paper: dict) -> list[dict]:
+    """Download + parse + embed a paper. Returns the stored chunk rows.
+    Raises HTTPException if no text can be extracted or embedding fails."""
+    pdf_bytes: bytes | None = None
+
+    if paper.get("storage_path"):
+        try:
+            signed = sb.storage.from_("papers").create_signed_url(paper["storage_path"], 300)
+            url = signed.get("signedURL") or signed.get("signedUrl") or signed.get("signed_url")
+            if url:
+                r = _req.get(url, timeout=30)
+                r.raise_for_status()
+                pdf_bytes = r.content
+        except Exception:
+            pdf_bytes = None
+
+    if not pdf_bytes and paper.get("source_type") == "arxiv" and paper.get("source_url"):
+        src = paper["source_url"]
+        pdf_url = src.replace("/abs/", "/pdf/") if "/abs/" in src else src
+        try:
+            r = _req.get(pdf_url, timeout=30, headers={"User-Agent": "Alphex/1.0"})
+            r.raise_for_status()
+            pdf_bytes = r.content
+        except Exception:
+            pdf_bytes = None
+
+    chunks: list[Chunk] = []
+    if pdf_bytes:
+        try:
+            parsed = parse_pdf(pdf_bytes)
+            chunks = chunk_pages(parsed)
+        except Exception:
+            chunks = []
+
+    if not chunks:
+        fallback = "\n\n".join(filter(None, [paper.get("abstract"), paper.get("title")]))
+        if fallback.strip():
+            chunks = [Chunk(content=fallback.strip(), chunk_index=0, page=None)]
+
+    if not chunks:
+        raise HTTPException(status_code=422, detail="No text could be extracted from this paper.")
+
+    sb.table("chunks").delete().eq("paper_id", paper_id).eq("user_id", user_id).execute()
+
+    rows: list[dict] = []
+    for i in range(0, len(chunks), 64):
+        batch = chunks[i : i + 64]
+        try:
+            vectors = embed_texts([c.content for c in batch])
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Embedding failed: {exc}") from exc
+        for c, v in zip(batch, vectors):
+            rows.append({
+                "paper_id": paper_id,
+                "user_id": user_id,
+                "content": c.content,
+                "embedding": v,
+                "chunk_index": c.chunk_index,
+                "page": c.page,
+            })
+
+    for i in range(0, len(rows), 200):
+        sb.table("chunks").insert(rows[i : i + 200]).execute()
+
+    return rows
+
+
 @router.post("/{paper_id}/rechunk")
 def rechunk_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     """Re-download and re-embed a paper's text. Replaces any existing chunks."""
@@ -178,73 +245,7 @@ def rechunk_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
     )
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
-
-    pdf_bytes: bytes | None = None
-
-    # Try Supabase Storage first (uploaded PDFs and arXiv).
-    if paper.get("storage_path"):
-        try:
-            signed = sb.storage.from_("papers").create_signed_url(paper["storage_path"], 300)
-            url = signed.get("signedURL") or signed.get("signedUrl") or signed.get("signed_url")
-            if url:
-                r = _req.get(url, timeout=30)
-                r.raise_for_status()
-                pdf_bytes = r.content
-        except Exception:
-            pdf_bytes = None
-
-    # Fall back: re-download arXiv PDF from source URL.
-    if not pdf_bytes and paper.get("source_type") == "arxiv" and paper.get("source_url"):
-        src = paper["source_url"]
-        pdf_url = src.replace("/abs/", "/pdf/") if "/abs/" in src else src
-        try:
-            r = _req.get(pdf_url, timeout=30, headers={"User-Agent": "Alphex/1.0"})
-            r.raise_for_status()
-            pdf_bytes = r.content
-        except Exception:
-            pdf_bytes = None
-
-    chunks: list[Chunk] = []
-
-    if pdf_bytes:
-        try:
-            parsed = parse_pdf(pdf_bytes)
-            chunks = chunk_pages(parsed)
-        except Exception:
-            chunks = []
-
-    # If no PDF text, fall back to abstract.
-    if not chunks:
-        fallback = "\n\n".join(filter(None, [paper.get("abstract"), paper.get("title")]))
-        if fallback.strip():
-            chunks = [Chunk(content=fallback.strip(), chunk_index=0, page=None)]
-
-    if not chunks:
-        raise HTTPException(status_code=422, detail="No text could be extracted from this paper.")
-
-    # Delete existing chunks then re-insert.
-    sb.table("chunks").delete().eq("paper_id", paper_id).eq("user_id", user.id).execute()
-
-    rows = []
-    for i in range(0, len(chunks), 64):
-        batch = chunks[i : i + 64]
-        try:
-            vectors = embed_texts([c.content for c in batch])
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Embedding failed: {exc}") from exc
-        for c, v in zip(batch, vectors):
-            rows.append({
-                "paper_id": paper_id,
-                "user_id": user.id,
-                "content": c.content,
-                "embedding": v,
-                "chunk_index": c.chunk_index,
-                "page": c.page,
-            })
-
-    for i in range(0, len(rows), 200):
-        sb.table("chunks").insert(rows[i : i + 200]).execute()
-
+    rows = _build_chunks(sb, paper_id, user.id, paper)
     return {"ok": True, "n_chunks": len(rows)}
 
 
@@ -293,7 +294,7 @@ def get_annotations(paper_id: str, user: CurrentUser = CurrentUserDep):
     sb = get_supabase()
     paper = (
         sb.table("papers")
-        .select("id,title")
+        .select("id,title,abstract,source_type,source_url,storage_path")
         .eq("id", paper_id)
         .eq("user_id", user.id)
         .maybe_single()
@@ -313,11 +314,23 @@ def get_annotations(paper_id: str, user: CurrentUser = CurrentUserDep):
         .data
         or []
     )
+
+    # Auto-index on first visit if no chunks exist yet.
     if not chunks:
-        raise HTTPException(
-            status_code=422,
-            detail="No text available. Re-index this paper first.",
+        _build_chunks(sb, paper_id, user.id, paper)
+        chunks = (
+            sb.table("chunks")
+            .select("content,page,chunk_index")
+            .eq("paper_id", paper_id)
+            .order("chunk_index")
+            .limit(20)
+            .execute()
+            .data
+            or []
         )
+
+    if not chunks:
+        raise HTTPException(status_code=422, detail="No text could be extracted from this paper.")
 
     try:
         terms = generate_annotations(paper["title"], [c["content"] for c in chunks])
