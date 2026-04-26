@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     ANTHROPIC_API_KEY: str
 
-    CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
+    CLAUDE_MODEL: str = "claude-sonnet-4-5"
     EMBED_MODEL: str = "text-embedding-3-small"
 
     CORS_ORIGINS: str = "http://localhost:3000"
