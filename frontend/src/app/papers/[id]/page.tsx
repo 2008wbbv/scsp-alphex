@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
+import { stripHtml } from "@/lib/utils";
 
 export default function PaperPage({ params }: { params: { id: string } }) {
   const [paper, setPaper] = useState<any | null>(null);
@@ -109,7 +110,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
     <Shell>
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
-          <Link href="/library" className="text-sm text-muted hover:text-white">
+          <Link href="/library" className="text-sm text-muted hover:text-[#0b0b0e]">
             ← Library
           </Link>
           <div>
@@ -117,8 +118,8 @@ export default function PaperPage({ params }: { params: { id: string } }) {
               {paper.source_type ?? "paper"}
               {paper.year ? ` · ${paper.year}` : ""}
             </div>
-            <h1 className="mt-1 text-2xl font-semibold text-white">
-              {paper.title}
+            <h1 className="mt-1 text-2xl font-semibold text-[#0b0b0e]">
+              {stripHtml(paper.title)}
             </h1>
             <div className="mt-1 text-sm text-muted">
               {(paper.authors ?? []).join(", ")}
@@ -128,13 +129,13 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           {paper.summary && (
             <div className="card">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white">
+                <h2 className="text-sm font-semibold text-[#0b0b0e]">
                   AI Summary
                 </h2>
                 <button
                   onClick={exportTex}
                   disabled={exporting}
-                  className="chip hover:text-white"
+                  className="chip hover:text-[#0b0b0e]"
                 >
                   {exporting ? "exporting…" : "export .tex"}
                 </button>
@@ -147,7 +148,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
 
           {paper.abstract && (
             <div className="card">
-              <h2 className="mb-2 text-sm font-semibold text-white">Abstract</h2>
+              <h2 className="mb-2 text-sm font-semibold text-[#0b0b0e]">Abstract</h2>
               <p className="whitespace-pre-wrap text-sm text-muted/90">
                 {paper.abstract}
               </p>
@@ -157,11 +158,11 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           {/* Charts from paper */}
           <div className="card">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">Data Visualizations</h2>
+              <h2 className="text-sm font-semibold text-[#0b0b0e]">Data Visualizations</h2>
               <button
                 onClick={generateCharts}
                 disabled={chartsLoading}
-                className="chip hover:text-white disabled:opacity-50"
+                className="chip hover:text-[#0b0b0e] disabled:opacity-50"
               >
                 {chartsLoading ? "Analyzing paper…" : charts.length > 0 ? "Regenerate" : "Generate charts"}
               </button>
@@ -174,7 +175,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
             )}
             {charts.map((c, i) => (
               <div key={i} className="mb-4 last:mb-0">
-                <div className="mb-1 text-sm font-medium text-white">{c.title}</div>
+                <div className="mb-1 text-sm font-medium text-[#0b0b0e]">{c.title}</div>
                 <p className="mb-2 text-xs text-muted">{c.explanation}</p>
                 <img
                   src={`data:image/png;base64,${c.image_base64}`}
@@ -195,12 +196,12 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           {paper.pdf_url ? (
             <div className="card">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white">Read Paper</h2>
+                <h2 className="text-sm font-semibold text-[#0b0b0e]">Read Paper</h2>
                 <a
                   href={paper.pdf_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="chip hover:text-white"
+                  className="chip hover:text-[#0b0b0e]"
                 >
                   open in new tab ↗
                 </a>
@@ -225,7 +226,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           ) : null}
 
           <div className="card">
-            <h2 className="mb-2 text-sm font-semibold text-white">Notes</h2>
+            <h2 className="mb-2 text-sm font-semibold text-[#0b0b0e]">Notes</h2>
             <div className="space-y-2">
               {notes.map((n) => (
                 <NoteRow key={n.id} note={n} onChange={load} />
@@ -251,7 +252,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
 
         <aside className="space-y-3">
           <div className="card">
-            <h2 className="mb-2 text-sm font-semibold text-white">Related</h2>
+            <h2 className="mb-2 text-sm font-semibold text-[#0b0b0e]">Related</h2>
             {related.length === 0 ? (
               <div className="text-xs text-muted">
                 Add more papers to see related work.
@@ -262,9 +263,9 @@ export default function PaperPage({ params }: { params: { id: string } }) {
                   <li key={r.id}>
                     <Link
                       href={`/papers/${r.id}`}
-                      className="block text-sm text-white hover:underline"
+                      className="block text-sm text-[#0b0b0e] hover:underline"
                     >
-                      {r.title}
+                      {stripHtml(r.title)}
                     </Link>
                     <div className="text-xs text-muted">
                       {(r.authors ?? []).slice(0, 2).join(", ")}
@@ -322,7 +323,7 @@ function NoteRow({ note, onChange }: { note: any; onChange: () => void }) {
             className="input"
           />
           <div className="mt-1 flex gap-1">
-            <button onClick={save} className="chip hover:text-white">
+            <button onClick={save} className="chip hover:text-[#0b0b0e]">
               save
             </button>
             <button onClick={() => setEditing(false)} className="chip">
@@ -334,7 +335,7 @@ function NoteRow({ note, onChange }: { note: any; onChange: () => void }) {
         <>
           <div className="whitespace-pre-wrap text-muted/90">{note.content}</div>
           <div className="mt-1 flex gap-1 text-xs">
-            <button onClick={() => setEditing(true)} className="chip hover:text-white">
+            <button onClick={() => setEditing(true)} className="chip hover:text-[#0b0b0e]">
               edit
             </button>
             <button onClick={del} className="chip hover:border-red-400 hover:text-red-300">

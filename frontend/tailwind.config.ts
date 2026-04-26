@@ -9,7 +9,7 @@ const config: Config = {
         panel: "#f6f6f9",
         panel2: "#eeeef3",
         border: "#e0e0e8",
-        accent: "#5b3fd4",
+        accent: "#0b0b0e",
         accent2: "#059669",
         muted: "#6b7280",
       },

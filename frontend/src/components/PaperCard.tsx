@@ -4,21 +4,22 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { api } from "@/lib/api";
+import { stripHtml } from "@/lib/utils";
 
 const STATUS_OPTIONS = ["unread", "reading", "read", "queued"] as const;
 type Status = (typeof STATUS_OPTIONS)[number];
 
 const STATUS_BAR: Record<Status, string> = {
   read:    "bg-emerald-500",
-  reading: "bg-indigo-400",
-  queued:  "bg-amber-400",
+  reading: "bg-[#0b0b0e]",
+  queued:  "bg-[#0b0b0e]",
   unread:  "bg-border",
 };
 
 const STATUS_LABEL: Record<Status, string> = {
   read:    "text-emerald-400",
-  reading: "text-indigo-300",
-  queued:  "text-amber-300",
+  reading: "text-[#0b0b0e]",
+  queued:  "text-[#0b0b0e]",
   unread:  "text-muted",
 };
 
@@ -74,9 +75,9 @@ export default function PaperCard({
         <div className="flex items-start justify-between gap-2">
           <Link
             href={`/papers/${paper.id}`}
-            className="line-clamp-3 text-sm font-medium text-white hover:text-accent2 transition-colors"
+            className="line-clamp-3 text-sm font-medium text-[#0b0b0e] hover:text-accent2 transition-colors"
           >
-            {paper.title || "Untitled"}
+            {stripHtml(paper.title) || "Untitled"}
           </Link>
           <span className="chip shrink-0 uppercase tracking-wider text-[10px]">
             {paper.source_type ?? "upload"}
@@ -126,7 +127,7 @@ export default function PaperCard({
             className={`rounded-full border border-border bg-panel2 px-2.5 py-1 text-[11px] font-medium focus:outline-none transition-colors ${STATUS_LABEL[status]}`}
           >
             {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s} className="text-white bg-panel2">
+              <option key={s} value={s} className="text-[#0b0b0e] bg-panel2">
                 {s}
               </option>
             ))}
@@ -137,7 +138,7 @@ export default function PaperCard({
                 href={paper.source_url}
                 target="_blank"
                 rel="noreferrer"
-                className="chip hover:text-white hover:border-border/60"
+                className="chip hover:text-[#0b0b0e] hover:border-border/60"
               >
                 source ↗
               </a>

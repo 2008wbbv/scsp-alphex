@@ -7,21 +7,22 @@ import { Network } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
+import { stripHtml } from "@/lib/utils";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
 
 const STATUS_COLOR: Record<string, string> = {
   unread:  "#4b5563",
-  reading: "#818cf8",
+  reading: "#0b0b0e",
   read:    "#34d399",
-  queued:  "#fbbf24",
+  queued:  "#0b0b0e",
 };
 
 const STATUS_LABEL: Record<string, string> = {
   unread:  "text-gray-400",
-  reading: "text-indigo-300",
+  reading: "text-[#0b0b0e]",
   read:    "text-emerald-400",
-  queued:  "text-amber-300",
+  queued:  "text-[#0b0b0e]",
 };
 
 export default function GraphPage() {
@@ -68,7 +69,7 @@ export default function GraphPage() {
       <div className="mx-auto max-w-6xl space-y-4 p-6">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Paper graph</h1>
+            <h1 className="text-2xl font-semibold text-[#0b0b0e]">Paper graph</h1>
             <p className="mt-0.5 text-sm text-muted">
               Nodes connect when cosine similarity &gt; 0.6. Click a node to inspect it.
             </p>
@@ -101,7 +102,7 @@ export default function GraphPage() {
             <div className="flex h-full items-center justify-center">
               <div className="text-center">
                 <Network size={32} className="mx-auto mb-3 text-muted/30" />
-                <div className="text-sm font-medium text-white">No papers yet</div>
+                <div className="text-sm font-medium text-[#0b0b0e]">No papers yet</div>
                 <div className="mt-1 text-xs text-muted">Add papers to your library to see the similarity graph</div>
               </div>
             </div>
@@ -124,7 +125,8 @@ export default function GraphPage() {
                 globalScale: number
               ) => {
                 if (globalScale < 0.7) return;
-                const label = node.title?.length > 28 ? node.title.slice(0, 28) + "…" : node.title;
+                const rawTitle = stripHtml(node.title ?? "");
+                const label = rawTitle.length > 28 ? rawTitle.slice(0, 28) + "…" : rawTitle;
                 const fontSize = 10 / globalScale;
                 ctx.font = `${fontSize}px Inter, sans-serif`;
                 ctx.fillStyle = "rgba(255,255,255,0.7)";
@@ -138,7 +140,7 @@ export default function GraphPage() {
         {selected && (
           <div className="animate-fade-up rounded-xl border border-border bg-panel p-4 flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-white">{selected.title}</div>
+              <div className="truncate text-sm font-medium text-[#0b0b0e]">{stripHtml(selected.title)}</div>
               <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
                 {selected.authors?.slice(0, 2).join(", ")}
                 {selected.year ? ` · ${selected.year}` : ""}

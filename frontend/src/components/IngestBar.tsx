@@ -86,8 +86,8 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
             onClick={() => { setTab(key); setError(null); }}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors ${
               tab === key
-                ? "border-b-2 border-accent text-white -mb-px"
-                : "text-muted hover:text-white"
+                ? "border-b-2 border-accent text-[#0b0b0e] -mb-px"
+                : "text-muted hover:text-[#0b0b0e]"
             }`}
           >
             <Icon size={13} />

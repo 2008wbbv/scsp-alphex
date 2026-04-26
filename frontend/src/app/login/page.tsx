@@ -212,7 +212,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
-              className="w-full text-center text-xs text-muted hover:text-white"
+              className="w-full text-center text-xs text-muted hover:text-[#0b0b0e]"
             >
               {mode === "signin" ? "No account? Create one" : "Already have an account? Sign in"}
             </button>

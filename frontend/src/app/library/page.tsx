@@ -67,13 +67,13 @@ export default function LibraryPage() {
         {/* Header */}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Library</h1>
+            <h1 className="text-2xl font-semibold text-[#0b0b0e]">Library</h1>
             {!loading && papers.length > 0 && (
               <div className="mt-1 flex items-center gap-3 text-xs text-muted">
                 <span>{stats.total} {stats.total === 1 ? "paper" : "papers"}</span>
                 {stats.reading > 0 && (
                   <span className="flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#0b0b0e]" />
                     {stats.reading} reading
                   </span>
                 )}
@@ -105,8 +105,8 @@ export default function LibraryPage() {
               aria-pressed={filter === f}
               className={`chip transition-all ${
                 filter === f
-                  ? "border-accent/60 bg-accent/15 text-white"
-                  : "hover:text-white hover:border-border/60"
+                  ? "border-accent/60 bg-accent/15 text-accent"
+                  : "hover:text-[#0b0b0e] hover:border-border/60"
               }`}
             >
               {FILTER_LABEL[f]}
@@ -126,7 +126,7 @@ export default function LibraryPage() {
           <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border bg-panel/40 py-16 text-center">
             <BookOpen size={32} className="text-muted/40" />
             <div>
-              <div className="text-sm font-medium text-white">
+              <div className="text-sm font-medium text-[#0b0b0e]">
                 {papers.length === 0 ? "Your library is empty" : "No papers match this filter"}
               </div>
               <div className="mt-1 text-xs text-muted">

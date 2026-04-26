@@ -45,7 +45,7 @@ const DialogContent = React.forwardRef<
         <Cross2Icon
           width={16}
           height={16}
-          className="opacity-60 transition-opacity group-hover:opacity-100 text-white"
+          className="opacity-60 transition-opacity group-hover:opacity-100 text-[#0b0b0e]"
         />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -73,7 +73,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold tracking-tight text-white", className)}
+    className={cn("text-lg font-semibold tracking-tight text-[#0b0b0e]", className)}
     {...props}
   />
 ));
