@@ -337,6 +337,15 @@ export const api = {
     return handle<any>(res);
   },
 
+  async scoreForgeDraft(id: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/forge/drafts/${id}/score`, {
+      method: "POST",
+      headers,
+    });
+    return handle<{ scores: { metric: string; score: number; suggestion: string }[]; overall: number }>(res);
+  },
+
   async shareForgeDraft(id: string) {
     const headers = await authHeaders();
     const res = await safeFetch(`${API_URL}/forge/drafts/${id}/share`, { method: "POST", headers });

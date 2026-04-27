@@ -2,7 +2,10 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Download, FileCode, Link2, Loader2, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import {
+  BarChart2, Check, Copy, Download, FileCode, Link2, Loader2,
+  MessageSquare, Pencil, Trash2, X,
+} from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
@@ -15,6 +18,134 @@ type Section = {
   image_base64?: string;
   comment?: string;
 };
+
+type ScoreItem = { metric: string; score: number; suggestion: string };
+
+// ---------------------------------------------------------------------------
+// Score helpers
+// ---------------------------------------------------------------------------
+
+function ringClass(score: number) {
+  if (score >= 8) return "border-emerald-500";
+  if (score >= 6) return "border-amber-400";
+  return "border-red-400";
+}
+
+function barClass(score: number) {
+  if (score >= 8) return "bg-emerald-500";
+  if (score >= 6) return "bg-amber-400";
+  return "bg-red-400";
+}
+
+function scoreTextClass(score: number) {
+  if (score >= 8) return "text-emerald-400";
+  if (score >= 6) return "text-amber-400";
+  return "text-red-400";
+}
+
+// ---------------------------------------------------------------------------
+// Score panel
+// ---------------------------------------------------------------------------
+
+function ScorePanel({
+  scores,
+  overall,
+  loading,
+  error,
+  onClose,
+  onRetry,
+}: {
+  scores: ScoreItem[] | null;
+  overall: number;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <aside className="sticky top-6">
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">
+            Draft Score
+          </h2>
+          <button onClick={onClose} className="chip hover:text-fg" title="Close">
+            <X size={11} />
+          </button>
+        </div>
+
+        {loading && (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <Loader2 size={22} className="animate-spin text-accent/60" />
+            <p className="text-xs text-muted">Claude is reading your draft…</p>
+          </div>
+        )}
+
+        {error && !loading && (
+          <div className="space-y-2">
+            <p className="text-xs text-red-400">{error}</p>
+            <button onClick={onRetry} className="chip hover:text-fg text-[11px]">
+              Try again
+            </button>
+          </div>
+        )}
+
+        {scores && !loading && (
+          <>
+            {/* Overall ring */}
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={`flex h-20 w-20 flex-col items-center justify-center rounded-full border-4 ${ringClass(overall)}`}
+              >
+                <span className={`text-2xl font-bold ${scoreTextClass(overall)}`}>
+                  {overall}
+                </span>
+                <span className="text-[10px] text-muted">/ 10</span>
+              </div>
+              <span className="text-[11px] text-muted">Overall</span>
+            </div>
+
+            {/* Per-metric bars */}
+            <div className="space-y-4">
+              {scores.map((s) => (
+                <div key={s.metric}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-fg">{s.metric}</span>
+                    <span className={`font-mono text-[11px] ${scoreTextClass(s.score)}`}>
+                      {s.score}/10
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${barClass(s.score)}`}
+                      style={{ width: `${s.score * 10}%` }}
+                    />
+                  </div>
+                  {s.suggestion && (
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+                      {s.suggestion}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={onRetry}
+              className="chip w-full justify-center text-[11px] hover:text-fg hover:border-border/60"
+            >
+              Re-score
+            </button>
+          </>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export default function ForgeDraftPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +162,13 @@ export default function ForgeDraftPage() {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Refs always hold the latest values so the debounced save never uses stale closures.
+  // Scoring
+  const [showScore, setShowScore] = useState(false);
+  const [scores, setScores] = useState<ScoreItem[] | null>(null);
+  const [overall, setOverall] = useState(0);
+  const [scoreLoading, setScoreLoading] = useState(false);
+  const [scoreError, setScoreError] = useState<string | null>(null);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestSections = useRef<Section[]>([]);
   const latestTitle = useRef<string>("");
@@ -102,6 +239,22 @@ export default function ForgeDraftPage() {
     scheduleSave();
   }
 
+  async function scoreDraft() {
+    setShowScore(true);
+    setScoreLoading(true);
+    setScoreError(null);
+    setScores(null);
+    try {
+      const result = await api.scoreForgeDraft(id);
+      setScores(result.scores);
+      setOverall(result.overall);
+    } catch (e: any) {
+      setScoreError(e.message ?? "Scoring failed");
+    } finally {
+      setScoreLoading(false);
+    }
+  }
+
   async function share() {
     try {
       const { share_token } = await api.shareForgeDraft(id);
@@ -119,9 +272,7 @@ export default function ForgeDraftPage() {
   function downloadFile(content: string, filename: string, mime = "text/plain") {
     const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
+    const a = Object.assign(document.createElement("a"), { href: url, download: filename });
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 100);
   }
@@ -146,13 +297,13 @@ export default function ForgeDraftPage() {
   async function exportLatex() {
     setLatexifying(true);
     try {
-      const { exportLatex: doExport } = await import("@/lib/api").then((m) => ({ exportLatex: m.api.exportLatex.bind(m.api) }));
-      const out = await doExport({
+      const out = await api.exportLatex({
         title: latestTitle.current || "Draft",
         body: buildLatexBody(latestSections.current),
         paper_ids: [],
       });
-      const slug = (latestTitle.current || "draft").replace(/\s+/g, "-").toLowerCase().replace(/[^a-z0-9-]/g, "");
+      const slug = (latestTitle.current || "draft")
+        .replace(/\s+/g, "-").toLowerCase().replace(/[^a-z0-9-]/g, "");
       downloadFile(out.tex, `${slug}.tex`, "application/x-tex");
       if (out.bib.trim()) downloadFile(out.bib, "references.bib", "text/plain");
     } catch (e: any) {
@@ -179,9 +330,10 @@ export default function ForgeDraftPage() {
     }
     const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(latestTitle.current || "draft").replace(/\s+/g, "-")}.md`;
+    const a = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `${(latestTitle.current || "draft").replace(/\s+/g, "-")}.md`,
+    });
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -189,16 +341,18 @@ export default function ForgeDraftPage() {
   if (loading) {
     return (
       <Shell>
-        <div className="flex h-full items-center justify-center text-sm text-muted">Loading draft…</div>
+        <div className="flex h-full items-center justify-center text-sm text-muted">
+          Loading draft…
+        </div>
       </Shell>
     );
   }
 
   return (
     <Shell>
-      <div className="mx-auto max-w-3xl space-y-4 p-6">
+      <div className={`mx-auto p-6 transition-all ${showScore ? "max-w-5xl" : "max-w-3xl"}`}>
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="mb-4 flex items-center gap-3">
           <input
             className="flex-1 border-0 bg-transparent text-2xl font-semibold text-fg outline-none placeholder-muted/40 focus:ring-0"
             value={title}
@@ -207,6 +361,16 @@ export default function ForgeDraftPage() {
           />
           <div className="flex shrink-0 items-center gap-2 text-xs text-muted">
             {saving && <span className="animate-pulse">saving…</span>}
+            <button
+              onClick={() => (showScore ? setShowScore(false) : scoreDraft())}
+              className={`flex items-center gap-1 chip hover:text-fg hover:border-border/60 ${
+                showScore && scores ? "border-accent/40 text-accent" : ""
+              }`}
+              title="Score this draft with AI"
+            >
+              <BarChart2 size={11} />
+              {showScore && scores ? `${overall}/10` : "Score"}
+            </button>
             <button
               onClick={exportMarkdown}
               className="flex items-center gap-1 chip hover:text-fg hover:border-border/60"
@@ -219,13 +383,9 @@ export default function ForgeDraftPage() {
               onClick={exportLatex}
               disabled={latexifying}
               className="flex items-center gap-1 chip hover:text-fg hover:border-border/60 disabled:opacity-50"
-              title="Export as LaTeX (.tex + .bib)"
+              title="Export as LaTeX"
             >
-              {latexifying ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <FileCode size={11} />
-              )}
+              {latexifying ? <Loader2 size={11} className="animate-spin" /> : <FileCode size={11} />}
               {latexifying ? "building…" : "LaTeX ↓"}
             </button>
             {shareUrl ? (
@@ -249,38 +409,55 @@ export default function ForgeDraftPage() {
         </div>
 
         {shareUrl && (
-          <div className="rounded-md border border-border bg-panel2 px-3 py-2 text-xs text-muted font-mono truncate">
+          <div className="mb-4 rounded-md border border-border bg-panel2 px-3 py-2 text-xs text-muted font-mono truncate">
             {shareUrl}
           </div>
         )}
 
-        {/* Sections */}
-        <div className="space-y-4">
-          {sections.map((sec) => (
-            <SectionBlock
-              key={sec.id}
-              sec={sec}
-              editing={editingId === sec.id}
-              commenting={commentingId === sec.id}
-              commentDraft={commentingId === sec.id ? commentDraft : ""}
-              onEdit={() => setEditingId(sec.id)}
-              onEditDone={() => setEditingId(null)}
-              onContentChange={(v) => updateSection(sec.id, v)}
-              onCommentStart={() => {
-                setCommentingId(sec.id);
-                setCommentDraft(sec.comment ?? "");
-              }}
-              onCommentChange={setCommentDraft}
-              onCommentSave={() => saveComment(sec.id)}
-              onCommentCancel={() => { setCommentingId(null); setCommentDraft(""); }}
-              onDelete={() => deleteSection(sec.id)}
+        {/* Body: two-column when score panel is open */}
+        <div className={showScore ? "grid grid-cols-[minmax(0,1fr)_288px] gap-6 items-start" : ""}>
+          <div className="space-y-4">
+            {sections.map((sec) => (
+              <SectionBlock
+                key={sec.id}
+                sec={sec}
+                editing={editingId === sec.id}
+                commenting={commentingId === sec.id}
+                commentDraft={commentingId === sec.id ? commentDraft : ""}
+                onEdit={() => setEditingId(sec.id)}
+                onEditDone={() => setEditingId(null)}
+                onContentChange={(v) => updateSection(sec.id, v)}
+                onCommentStart={() => {
+                  setCommentingId(sec.id);
+                  setCommentDraft(sec.comment ?? "");
+                }}
+                onCommentChange={setCommentDraft}
+                onCommentSave={() => saveComment(sec.id)}
+                onCommentCancel={() => { setCommentingId(null); setCommentDraft(""); }}
+                onDelete={() => deleteSection(sec.id)}
+              />
+            ))}
+          </div>
+
+          {showScore && (
+            <ScorePanel
+              scores={scores}
+              overall={overall}
+              loading={scoreLoading}
+              error={scoreError}
+              onClose={() => setShowScore(false)}
+              onRetry={scoreDraft}
             />
-          ))}
+          )}
         </div>
       </div>
     </Shell>
   );
 }
+
+// ---------------------------------------------------------------------------
+// SectionBlock (unchanged)
+// ---------------------------------------------------------------------------
 
 function SectionBlock({
   sec, editing, commenting, commentDraft,
@@ -303,9 +480,10 @@ function SectionBlock({
 }) {
   function downloadChart() {
     if (!sec.image_base64) return;
-    const a = document.createElement("a");
-    a.href = `data:image/png;base64,${sec.image_base64}`;
-    a.download = `${sec.content.replace(/\s+/g, "-") || "chart"}.png`;
+    const a = Object.assign(document.createElement("a"), {
+      href: `data:image/png;base64,${sec.image_base64}`,
+      download: `${sec.content.replace(/\s+/g, "-") || "chart"}.png`,
+    });
     a.click();
   }
 
@@ -348,23 +526,23 @@ function SectionBlock({
           {sec.code && (
             <details className="text-xs">
               <summary className="cursor-pointer text-muted hover:text-fg">view code</summary>
-              <pre className="mt-1 overflow-x-auto rounded bg-panel2 p-2 font-mono text-[11px] text-muted">{sec.code}</pre>
+              <pre className="mt-1 overflow-x-auto rounded bg-panel2 p-2 font-mono text-[11px] text-muted">
+                {sec.code}
+              </pre>
             </details>
           )}
         </div>
+      ) : editing ? (
+        <textarea
+          autoFocus
+          rows={4}
+          className="input w-full resize-none"
+          value={sec.content}
+          onChange={(e) => onContentChange(e.target.value)}
+          onBlur={onEditDone}
+        />
       ) : (
-        editing ? (
-          <textarea
-            autoFocus
-            rows={4}
-            className="input w-full resize-none"
-            value={sec.content}
-            onChange={(e) => onContentChange(e.target.value)}
-            onBlur={onEditDone}
-          />
-        ) : (
-          <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap">{sec.content}</p>
-        )
+        <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap">{sec.content}</p>
       )}
 
       {sec.comment && !commenting && (

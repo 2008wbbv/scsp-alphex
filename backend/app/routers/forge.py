@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
-from ..services.claude import generate_forge_draft, generate_chart_code
+from ..services.claude import generate_forge_draft, generate_chart_code, score_forge_draft
 from ..routers.graph import _run_chart_code
 
 router = APIRouter(prefix="/forge", tags=["forge"])
@@ -151,6 +151,30 @@ def share_draft(draft_id: str, user: CurrentUser = CurrentUserDep):
     token = draft.get("share_token") or secrets.token_urlsafe(24)
     sb.table("forge_drafts").update({"share_token": token}).eq("id", draft_id).execute()
     return {"share_token": token}
+
+
+@router.post("/drafts/{draft_id}/score")
+def score_draft(draft_id: str, user: CurrentUser = CurrentUserDep):
+    sb = get_supabase()
+    draft = (
+        sb.table("forge_drafts")
+        .select("title,sections")
+        .eq("id", draft_id)
+        .eq("user_id", user.id)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    try:
+        scores = score_forge_draft(draft["title"] or "", draft["sections"] or [])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM error: {exc}")
+    overall = round(sum(s["score"] for s in scores) / len(scores), 1) if scores else 0
+    return {"scores": scores, "overall": overall}
 
 
 @router.get("/shared/{token}")

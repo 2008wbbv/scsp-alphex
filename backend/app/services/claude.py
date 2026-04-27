@@ -313,6 +313,96 @@ Requirements:
 - Return ONLY the review text in markdown. No preamble, no commentary, no fences."""
 
 
+SCORING_SYSTEM = """You are a research writing evaluator. Score the given draft on five metrics (1–10 each) and give one specific, actionable improvement suggestion per metric.
+
+Return EXACTLY this format — one block per metric, nothing else:
+
+SCORE_START
+METRIC: Clarity
+SCORE: <integer 1-10>
+SUGGESTION: <one concrete, specific suggestion — 1-2 sentences>
+SCORE_END
+
+SCORE_START
+METRIC: Evidence
+SCORE: <integer 1-10>
+SUGGESTION: <one concrete, specific suggestion — 1-2 sentences>
+SCORE_END
+
+SCORE_START
+METRIC: Structure
+SCORE: <integer 1-10>
+SUGGESTION: <one concrete, specific suggestion — 1-2 sentences>
+SCORE_END
+
+SCORE_START
+METRIC: Depth
+SCORE: <integer 1-10>
+SUGGESTION: <one concrete, specific suggestion — 1-2 sentences>
+SCORE_END
+
+SCORE_START
+METRIC: Originality
+SCORE: <integer 1-10>
+SUGGESTION: <one concrete, specific suggestion — 1-2 sentences>
+SCORE_END
+
+Rubric:
+- Clarity: writing is clear, concise, and accessible; jargon defined where used
+- Evidence: claims backed by citations, data, or concrete examples
+- Structure: logical flow, clear sections, coherent transitions
+- Depth: analysis is substantive and nuanced rather than superficial
+- Originality: offers novel framing or synthesis beyond mere summarisation
+
+Be honest and critical. Reserve 9–10 for genuinely excellent work."""
+
+
+def score_forge_draft(title: str, sections: list[dict]) -> list[dict]:
+    """Return [{metric, score, suggestion}] for the draft content."""
+    lines = [f"Title: {title or 'Untitled'}"]
+    for sec in sections:
+        stype = sec.get("type", "text")
+        content = sec.get("content", "")
+        if stype == "heading":
+            lines.append(f"\n## {content}")
+        elif stype == "chart":
+            lines.append(f"\n[Chart: {content}]")
+        elif content:
+            lines.append(f"\n{content}")
+    draft_text = "\n".join(lines).strip()
+    if len(draft_text) <= len(f"Title: {title or 'Untitled'}"):
+        raise ValueError("Draft has no content to score.")
+
+    raw = complete(
+        system=SCORING_SYSTEM,
+        messages=[{"role": "user", "content": f"Score this draft:\n\n{draft_text[:8000]}"}],
+        max_tokens=1200,
+        temperature=0.2,
+    )
+
+    scores: list[dict] = []
+    for block in raw.split("SCORE_START"):
+        block = block.strip()
+        if "SCORE_END" not in block:
+            continue
+        block = block[: block.index("SCORE_END")].strip()
+        fields: dict[str, str] = {}
+        for line in block.splitlines():
+            for key in ("METRIC", "SCORE", "SUGGESTION"):
+                if line.startswith(f"{key}: "):
+                    fields[key.lower()] = line[len(key) + 2:].strip()
+        metric = fields.get("metric", "")
+        score_str = fields.get("score", "")
+        suggestion = fields.get("suggestion", "")
+        if metric and score_str.isdigit():
+            scores.append({
+                "metric": metric,
+                "score": max(1, min(10, int(score_str))),
+                "suggestion": suggestion,
+            })
+    return scores
+
+
 def generate_literature_review(papers: list[dict], focus: str) -> str:
     """Return a markdown literature review grounded in the provided papers."""
     sources = "\n\n".join(
