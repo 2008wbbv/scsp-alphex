@@ -1,9 +1,14 @@
+import json
+
+from anthropic import Anthropic
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..auth import CurrentUser, CurrentUserDep
+from ..config import get_settings
 from ..db import get_supabase
-from ..services.claude import chat_with_context
+from ..services.claude import CHAT_SYSTEM, chat_with_context
 from ..services.embeddings import embed_query
 from .papers import _build_chunks
 
@@ -196,3 +201,139 @@ def chat(body: ChatIn, user: CurrentUser = CurrentUserDep):
         pass
 
     return {"answer": answer, "citations": citations}
+
+
+@router.post("/stream")
+def chat_stream(body: ChatIn, user: CurrentUser = CurrentUserDep):
+    """SSE endpoint — yields citation metadata then token-by-token text."""
+    sb = get_supabase()
+    matches: list[dict] = []
+    try:
+        embedding = embed_query(body.message)
+        try:
+            matches = (
+                sb.rpc(
+                    "match_chunks",
+                    {
+                        "query_embedding": embedding,
+                        "match_user": user.id,
+                        "match_count": body.k,
+                        "filter_paper": body.paper_id,
+                    },
+                )
+                .execute()
+                .data
+                or []
+            )
+        except Exception:
+            matches = []
+    except Exception:
+        matches = []
+
+    # Auto-index if scoped to paper with no chunks
+    if not matches and body.paper_id:
+        try:
+            paper = (
+                sb.table("papers")
+                .select("id,title,abstract,source_type,source_url,storage_path")
+                .eq("id", body.paper_id)
+                .eq("user_id", user.id)
+                .maybe_single()
+                .execute()
+                .data
+            )
+            if paper:
+                _build_chunks(sb, body.paper_id, user.id, paper)
+                matches = (
+                    sb.rpc(
+                        "match_chunks",
+                        {
+                            "query_embedding": embedding,
+                            "match_user": user.id,
+                            "match_count": body.k,
+                            "filter_paper": body.paper_id,
+                        },
+                    )
+                    .execute()
+                    .data
+                    or []
+                )
+        except Exception:
+            pass
+
+    paper_ids = list({m["paper_id"] for m in matches})
+    papers = []
+    if paper_ids:
+        papers = (
+            sb.table("papers")
+            .select("id,title,authors,year,source_url")
+            .in_("id", paper_ids)
+            .execute()
+            .data
+            or []
+        )
+    by_id = {p["id"]: p for p in papers}
+    blocks, citations = _format_citations(matches, by_id)
+
+    safe_history = [
+        {"role": h["role"], "content": h["content"]}
+        for h in body.history
+        if h.get("role") in {"user", "assistant"} and h.get("content")
+    ][-8:]
+
+    context = "\n\n".join(blocks) if blocks else "(no relevant snippets found)"
+    messages = list(safe_history) + [
+        {
+            "role": "user",
+            "content": (
+                f"Context:\n{context}\n\n"
+                f"Question: {body.message}\n\n"
+                "Answer using only the context. Cite snippets inline like [S1]."
+            ),
+        }
+    ]
+
+    settings = get_settings()
+    user_id = user.id
+    user_message = body.message
+
+    def generate():
+        yield f"data: {json.dumps({'type': 'citations', 'citations': citations})}\n\n"
+        full_text = ""
+        try:
+            client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+            with client.messages.stream(
+                model=settings.CLAUDE_MODEL,
+                system=CHAT_SYSTEM,
+                messages=messages,
+                max_tokens=1200,
+            ) as stream:
+                for text in stream.text_stream:
+                    full_text += text
+                    yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+            return
+
+        try:
+            sb.table("chat_messages").insert(
+                [
+                    {"user_id": user_id, "role": "user", "content": user_message},
+                    {
+                        "user_id": user_id,
+                        "role": "assistant",
+                        "content": full_text,
+                        "citations": citations,
+                    },
+                ]
+            ).execute()
+        except Exception:
+            pass
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

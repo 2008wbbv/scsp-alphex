@@ -153,6 +153,56 @@ export const api = {
     return handle<{ answer: string; citations: any[] }>(res);
   },
 
+  async chatStream(
+    message: string,
+    history: { role: string; content: string }[],
+    paperId?: string,
+    onToken?: (token: string) => void,
+    onCitations?: (citations: any[]) => void,
+  ): Promise<void> {
+    const headers = await authHeaders({ "Content-Type": "application/json" });
+    const res = await safeFetch(`${API_URL}/chat/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ message, history, paper_id: paperId ?? null }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Request failed (${res.status})`);
+    }
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === "token" && onToken) onToken(data.text);
+          if (data.type === "citations" && onCitations) onCitations(data.citations);
+          if (data.type === "error") throw new Error(data.message);
+        } catch (e: any) {
+          if (e?.message && !e.message.startsWith("JSON")) throw e;
+        }
+      }
+    }
+  },
+
+  async searchArxiv(q: string): Promise<{ results: any[] }> {
+    const headers = await authHeaders();
+    const res = await safeFetch(
+      `${API_URL}/papers/arxiv-search?q=${encodeURIComponent(q)}`,
+      { headers }
+    );
+    return handle<{ results: any[] }>(res);
+  },
+
   async listNotes(paperId?: string) {
     const headers = await authHeaders();
     const url = paperId

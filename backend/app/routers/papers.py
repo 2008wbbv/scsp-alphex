@@ -1,3 +1,7 @@
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
+
 import requests as _req
 
 from fastapi import APIRouter, HTTPException
@@ -99,6 +103,40 @@ def paper_graph(user: CurrentUser = CurrentUserDep):
                 }
             )
     return {"nodes": nodes, "edges": edges}
+
+
+@router.get("/arxiv-search")
+def arxiv_search(q: str, limit: int = 10):
+    """Search arXiv public API — no auth required."""
+    encoded = urllib.parse.quote(q.strip())
+    url = (
+        f"http://export.arxiv.org/api/query"
+        f"?search_query=all:{encoded}"
+        f"&max_results={min(limit, 20)}"
+        f"&sortBy=relevance"
+    )
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = resp.read()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"arXiv API error: {exc}")
+
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    root = ET.fromstring(data)
+    results = []
+    for entry in root.findall("atom:entry", ns):
+        raw_id = (entry.findtext("atom:id", "", ns) or "").strip()
+        arxiv_id = raw_id.split("/abs/")[-1].rsplit("v", 1)[0] if "/abs/" in raw_id else ""
+        title = " ".join((entry.findtext("atom:title", "", ns) or "").split())
+        summary = " ".join((entry.findtext("atom:summary", "", ns) or "").split())
+        published = entry.findtext("atom:published", "", ns) or ""
+        year = int(published[:4]) if len(published) >= 4 and published[:4].isdigit() else None
+        authors = [
+            (a.findtext("atom:name", "", ns) or "").strip()
+            for a in entry.findall("atom:author", ns)
+        ]
+        results.append({"arxiv_id": arxiv_id, "title": title, "abstract": summary[:500], "authors": authors, "year": year})
+    return {"results": results}
 
 
 @router.get("/{paper_id}")

@@ -33,6 +33,7 @@ type Msg =
       citations?: Citation[];
       image_base64?: string;
       code?: string;
+      streaming?: boolean;
     };
 
 function uid() {
@@ -90,11 +91,33 @@ function ChatPageInner() {
         ]);
       } else {
         const history = messages.slice().map((m) => ({ role: m.role, content: m.content }));
-        const { answer, citations } = await api.chat(text, history, selectedPaperId ?? undefined);
+        const assistantId = uid();
         setMessages((m) => [
           ...m,
-          { id: uid(), role: "assistant", content: answer, citations },
+          { id: assistantId, role: "assistant", content: "", streaming: true },
         ]);
+        await api.chatStream(
+          text,
+          history,
+          selectedPaperId ?? undefined,
+          (token) => {
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, content: (msg as any).content + token }
+                  : msg
+              )
+            );
+          },
+          (citations) => {
+            setMessages((m) =>
+              m.map((msg) => (msg.id === assistantId ? { ...msg, citations } : msg))
+            );
+          }
+        );
+        setMessages((m) =>
+          m.map((msg) => (msg.id === assistantId ? { ...msg, streaming: false } : msg))
+        );
       }
     } catch (err: any) {
       setMessages((m) => [
@@ -224,15 +247,6 @@ function ChatPageInner() {
             </div>
           ))}
 
-          {busy && (
-            <div className="flex justify-start">
-              <div className="flex items-center gap-1.5 rounded-xl border border-border bg-panel px-4 py-3">
-                <span className="thinking-dot" />
-                <span className="thinking-dot" />
-                <span className="thinking-dot" />
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="mt-3">
@@ -255,6 +269,9 @@ function ChatPageInner() {
 
 function Bubble({ msg }: { msg: Msg }) {
   const isUser = msg.role === "user";
+  const isStreaming = msg.role === "assistant" && (msg as any).streaming;
+  const isEmpty = msg.role === "assistant" && !msg.content;
+
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
@@ -264,11 +281,22 @@ function Bubble({ msg }: { msg: Msg }) {
             : "border border-border bg-panel text-fg"
         }`}
       >
-        <div className="whitespace-pre-wrap">
-          {msg.role === "assistant" && msg.citations
-            ? renderCited(msg.content, msg.citations)
-            : msg.content}
-        </div>
+        {isEmpty && isStreaming ? (
+          <div className="flex items-center gap-1.5 py-0.5">
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+          </div>
+        ) : (
+          <div className="whitespace-pre-wrap">
+            {msg.role === "assistant" && msg.citations
+              ? renderCited(msg.content, msg.citations)
+              : msg.content}
+            {isStreaming && (
+              <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-accent2/70 align-middle" />
+            )}
+          </div>
+        )}
 
         {msg.role === "assistant" && msg.image_base64 && (
           <img

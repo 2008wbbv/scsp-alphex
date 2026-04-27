@@ -21,6 +21,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [email, setEmail]       = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [progress, setProgress] = useState<{ total: number; read: number; reading: number } | null>(null);
 
   useEffect(() => {
     const sb = supabaseBrowser();
@@ -32,6 +33,18 @@ export default function Sidebar() {
       setEmail(session?.user?.email ?? null);
     });
     return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    import("@/lib/api").then(({ api }) =>
+      api.listPapers().then(({ papers }) => {
+        setProgress({
+          total: papers.length,
+          read: papers.filter((p: any) => p.status === "read").length,
+          reading: papers.filter((p: any) => p.status === "reading").length,
+        });
+      }).catch(() => {})
+    );
   }, []);
 
   async function signOut() {
@@ -86,6 +99,34 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Reading progress */}
+      {progress && progress.total > 0 && (
+        <div className="mx-3 mb-2 rounded-lg border border-border bg-panel/50 px-3 py-2.5">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-medium uppercase tracking-widest text-muted">
+            <span>Progress</span>
+            <span className="font-mono">{progress.read}/{progress.total}</span>
+          </div>
+          <div className="h-1 w-full overflow-hidden rounded-full bg-border">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-accent to-accent2 transition-all duration-500"
+              style={{ width: `${Math.round((progress.read / progress.total) * 100)}%` }}
+            />
+          </div>
+          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted">
+            {progress.reading > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                {progress.reading} reading
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {progress.read} read
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Bottom: user */}
       <div className="border-t border-border px-4 py-4 space-y-3">

@@ -55,6 +55,25 @@ export default function LoginPage() {
     }
   }
 
+  async function signInDemo() {
+    setLoading("email");
+    setError(null);
+    setEmail("demo@alphex.ai");
+    setPassword("demo1234");
+    try {
+      const { error: err } = await supabaseBrowser().auth.signInWithPassword({
+        email: "demo@alphex.ai",
+        password: "demo1234",
+      });
+      if (err) throw err;
+      router.replace("/library");
+    } catch {
+      setError("Demo account unavailable — please sign up for free.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
   async function submitEmail(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) return;
@@ -229,6 +248,21 @@ export default function LoginPage() {
               {mode === "signin"
                 ? "No account? Create one →"
                 : "Already have an account? Sign in →"}
+            </button>
+
+            <div className="flex items-center gap-3 text-xs text-muted">
+              <div className="h-px flex-1 bg-border" />
+              or
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <button
+              type="button"
+              disabled={loading !== null}
+              onClick={signInDemo}
+              className="w-full text-center text-xs text-accent2/70 transition-colors hover:text-accent2 disabled:opacity-50"
+            >
+              Try demo account →
             </button>
           </div>
         </div>
