@@ -49,7 +49,7 @@ def create_note(body: NoteIn, user: CurrentUser = CurrentUserDep):
         )
         .execute()
     )
-    if not result.data:
+    if not result.data or len(result.data) == 0:
         raise HTTPException(status_code=500, detail="Failed to create note")
     return result.data[0]
 

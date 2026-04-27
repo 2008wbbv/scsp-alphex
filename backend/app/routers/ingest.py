@@ -161,7 +161,7 @@ def _persist(
         )
         .execute()
     )
-    if not result.data:
+    if not result.data or len(result.data) == 0:
         raise HTTPException(status_code=500, detail="Failed to create paper record")
     paper = result.data[0]
 
@@ -212,7 +212,8 @@ def _persist(
 
     # Auto-tag (best-effort — never blocks ingest).
     try:
-        auto_tags = generate_tags(final_title, abstract)
+        body_samples = [c.content for c in chunks[2:5]] if len(chunks) > 2 else []
+        auto_tags = generate_tags(final_title, abstract, body_chunks=body_samples)
         if auto_tags:
             sb.table("tags").insert([
                 {"paper_id": paper_id, "user_id": user.id, "name": t}
@@ -306,7 +307,7 @@ def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
         )
         .execute()
     )
-    if not result.data:
+    if not result.data or len(result.data) == 0:
         raise HTTPException(status_code=500, detail="Failed to create paper record")
     paper = result.data[0]
     paper_id = paper["id"]

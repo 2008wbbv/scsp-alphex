@@ -38,18 +38,23 @@ export default function GraphPage() {
         {/* Paper selector */}
         <div className="flex items-center gap-2">
           <BookOpen size={13} className="shrink-0 text-muted" />
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="flex-1 max-w-sm rounded-md border border-border bg-panel px-2.5 py-1.5 text-xs text-fg focus:outline-none focus:border-fg/40"
-          >
-            <option value="">All papers (similarity graph)</option>
-            {papers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title}
-              </option>
-            ))}
-          </select>
+          <div className="relative flex-1 max-w-sm">
+            <select
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className="w-full appearance-none rounded-md border border-border bg-panel pl-2.5 pr-7 py-1.5 text-xs text-fg focus:outline-none focus:border-fg/40"
+            >
+              <option value="">All papers (similarity graph)</option>
+              {papers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 8 8">
+              <path d="M1 2.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
           {selectedId && (
             <button onClick={() => setSelectedId("")} className="text-muted hover:text-fg">
               <X size={13} />
@@ -134,7 +139,7 @@ function SimilarityGraph({ paperId }: { paperId: string | null }) {
     <>
       <div
         ref={containerRef}
-        className="relative h-[520px] w-full overflow-hidden rounded-xl border border-border bg-[#fafaf9]"
+        className="relative h-[520px] w-full overflow-hidden rounded-xl border border-border bg-[#f6f5f3]"
       >
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted">
@@ -150,20 +155,48 @@ function SimilarityGraph({ paperId }: { paperId: string | null }) {
             height={dims.height}
             graphData={graphData}
             nodeLabel="title"
-            nodeColor={() => "#18181b"}
             nodeVal={(n: any) => n.val}
-            linkWidth={(l: any) => (l.value ?? 0.5) * 2}
-            linkColor={() => "rgba(24,24,27,0.15)"}
+            linkWidth={(l: any) => Math.max(0.5, (l.value ?? 0.3) * 2.5)}
+            linkColor={() => "rgba(99,102,241,0.18)"}
             backgroundColor="transparent"
             onNodeClick={(node: any) => setSelected(node)}
-            nodeCanvasObjectMode={() => "after"}
+            nodeCanvasObjectMode={() => "replace"}
             nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, gs: number) => {
-              if (gs < 0.7) return;
-              const label = node.title?.length > 28 ? node.title.slice(0, 28) + "…" : node.title;
-              ctx.font = `${10 / gs}px Inter, sans-serif`;
-              ctx.fillStyle = "rgba(24,24,27,0.7)";
+              const x = node.x as number;
+              const y = node.y as number;
+              if (!isFinite(x) || !isFinite(y)) return;
+              const r = 5 / gs;
+
+              // Outer glow
+              const glow = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.2);
+              glow.addColorStop(0, "rgba(99,102,241,0.18)");
+              glow.addColorStop(1, "rgba(99,102,241,0)");
+              ctx.beginPath();
+              ctx.arc(x, y, r * 2.2, 0, 2 * Math.PI);
+              ctx.fillStyle = glow;
+              ctx.fill();
+
+              // Node fill with gradient
+              const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+              grad.addColorStop(0, node === selected ? "#818cf8" : "#6366f1");
+              grad.addColorStop(1, node === selected ? "#4f46e5" : "#4338ca");
+              ctx.beginPath();
+              ctx.arc(x, y, r, 0, 2 * Math.PI);
+              ctx.fillStyle = grad;
+              ctx.fill();
+
+              // Subtle border
+              ctx.strokeStyle = "rgba(255,255,255,0.35)";
+              ctx.lineWidth = 0.8 / gs;
+              ctx.stroke();
+
+              // Label
+              if (gs < 0.6) return;
+              const label = node.title?.length > 26 ? node.title.slice(0, 26) + "…" : node.title;
+              ctx.font = `${9 / gs}px Inter, sans-serif`;
+              ctx.fillStyle = "rgba(30,27,75,0.75)";
               ctx.textAlign = "center";
-              ctx.fillText(label, node.x, node.y + 11 / gs);
+              ctx.fillText(label, x, y + r + 9 / gs);
             }}
           />
         )}
@@ -173,7 +206,7 @@ function SimilarityGraph({ paperId }: { paperId: string | null }) {
           <div className="min-w-0">
             <div className="truncate text-sm font-medium text-fg">{selected.title}</div>
             <div className="mt-0.5 text-xs text-muted">
-              {selected.authors?.slice(0, 2).join(", ")}{selected.year ? ` · ${selected.year}` : ""}
+              {(selected.authors ?? []).slice(0, 2).join(", ")}{selected.year ? ` · ${selected.year}` : ""}
             </div>
           </div>
           <div className="flex shrink-0 gap-2">

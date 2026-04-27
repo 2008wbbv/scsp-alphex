@@ -55,33 +55,39 @@ def summarize_paper(title: str | None, body: str) -> str:
 
 
 CHAT_SYSTEM = (
-    "You are Alphex, a research assistant grounded in the user's personal "
-    "paper library. Use the provided context snippets to answer accurately. "
-    "Each snippet is tagged like [S1], [S2] — cite them inline when you draw "
-    "on them, e.g. 'Transformers outperform RNNs [S2].' "
-    "If the snippets only partially cover the question, answer what you can "
-    "from the context and note what is not covered, rather than refusing "
-    "entirely. Never fabricate citations or invent numbers not in the context."
+    "You are Alphex, a research assistant. Your answers must come exclusively "
+    "from the context snippets provided in each message — never from your general "
+    "training knowledge. Each snippet is tagged [S1], [S2], etc. Cite them inline "
+    "whenever you use them, e.g. 'Transformers outperform RNNs [S2].' "
+    "Give detailed, thorough answers: explain findings, include specific numbers and "
+    "statistics from the context, and synthesise across multiple snippets when relevant. "
+    "If the context does not contain enough information to answer, say: "
+    "'I could not find relevant information in your library for this question.' "
+    "Do not invent data, statistics, or citations not present in the context."
 )
 
 
 def chat_with_context(question: str, context_blocks: list[str], history: list[dict]) -> str:
-    context = "\n\n".join(context_blocks) if context_blocks else "(no relevant snippets found)"
-    messages = list(history) + [
-        {
-            "role": "user",
-            "content": (
-                f"Context:\n{context}\n\n"
-                f"Question: {question}\n\n"
-                "Answer using only the context. Cite snippets inline like [S1]."
-            ),
-        }
-    ]
+    if context_blocks:
+        context = "\n\n".join(context_blocks)
+        user_content = (
+            f"Context snippets from your library:\n{context}\n\n"
+            f"Question: {question}\n\n"
+            "Give a detailed answer using the context above. Include specific numbers, findings, "
+            "and explanations. Cite each snippet inline as [S1], [S2], etc."
+        )
+    else:
+        user_content = (
+            f"Question: {question}\n\n"
+            "No context snippets were found in your library for this question. "
+            "Respond: 'I could not find relevant information in your library for this question.'"
+        )
+    messages = list(history) + [{"role": "user", "content": user_content}]
     return complete(
         system=CHAT_SYSTEM,
         messages=messages,
-        max_tokens=1200,
-        temperature=0.3,
+        max_tokens=2000,
+        temperature=0.1,
     )
 
 
@@ -97,7 +103,7 @@ GRAPH_SYSTEM = (
 
 PAPER_CHART_SYSTEM = """You are a data visualization expert analyzing academic papers.
 
-Given numbered paper chunks, identify 2-3 distinct quantitative findings, comparisons, or trends and write a matplotlib script for each.
+Given numbered paper chunks, identify 2-3 distinct quantitative findings, comparisons, or trends that have EXPLICIT numbers in the text, and write a matplotlib script for each.
 
 Return EXACTLY this format (no markdown, no extra text):
 
@@ -109,15 +115,18 @@ CODE:
 <python code>
 CHART_END
 
-Rules for each CODE block:
-- Use only numpy and matplotlib.pyplot (already imported as np and plt)
-- os is imported; read output path from os.environ['OUT']
-- Style: white background, dark text/labels (#18181b), use slate (#334155) or blue (#3b82f6) for bars/lines
-- fig.patch.set_facecolor('white'); ax.set_facecolor('#f8f8f8')
-- plt.savefig(os.environ['OUT'], dpi=150, bbox_inches='tight', facecolor='white')
-- No plt.show(), no imports, no network or file access except os.environ['OUT']
-- If exact numbers aren't stated, use illustrative data and add "(Illustrative)" to the title
-- Include meaningful axis labels and a legend if needed"""
+Rules:
+- Only generate a chart if you found REAL numbers explicitly stated in the provided text. Do NOT invent or estimate any data values.
+- If you cannot find at least 2 concrete data points for a chart, skip it entirely — return fewer charts rather than fabricating data.
+- CODE block rules:
+  - Use only numpy and matplotlib.pyplot (already imported as np and plt)
+  - os is imported; read output path from os.environ['OUT']
+  - Style: white background, dark text/labels (#18181b), use slate (#334155) or blue (#3b82f6) for bars/lines
+  - fig.patch.set_facecolor('white'); ax.set_facecolor('#f8f8f8')
+  - plt.savefig(os.environ['OUT'], dpi=150, bbox_inches='tight', facecolor='white')
+  - No plt.show(), no imports, no network or file access except os.environ['OUT']
+  - Hard-code the exact numbers from the paper text directly in the script
+  - Include meaningful axis labels and a legend if needed"""
 
 
 def analyze_paper_for_charts(title: str, chunks: list[dict]) -> list[dict]:
@@ -133,7 +142,10 @@ def analyze_paper_for_charts(title: str, chunks: list[dict]) -> list[dict]:
     user = (
         f"Paper: {title}\n\n"
         f"Excerpts:\n{context}\n\n"
-        "Generate 2-3 charts based on quantitative data or comparisons in this paper. "
+        "Generate charts ONLY for quantitative data explicitly stated in the text above — "
+        "exact percentages, scores, counts, measurements, or comparisons with real numbers. "
+        "Do NOT invent, estimate, or use placeholder values. "
+        "If you find no concrete numbers, return nothing. "
         "Cite the chunk label(s) where you found each dataset."
     )
     raw = complete(
@@ -175,13 +187,17 @@ ANNOTATION_SYSTEM = (
     "TERM: <exact term as it appears in the text>\n"
     "DEF: <concise 1-sentence plain-English definition>\n\n"
     "Rules: max 15 terms; only include terms that actually appear in the provided text; "
-    "prioritise acronyms, model names, and field-specific jargon."
+    "prioritise acronyms, model names, and field-specific jargon. "
+    "NEVER include: author names, institution names, journal names, city names, "
+    "country names, funding bodies, or any proper nouns that are not technical concepts."
 )
 
 
 def generate_annotations(title: str, chunks: list[str]) -> list[dict]:
     """Return [{term, definition}] for hard terms found in the paper."""
-    context = "\n\n---\n\n".join(chunks[:10])
+    # Skip the first 2 chunks — they are typically the title/author/affiliation header.
+    body_chunks = chunks[2:] if len(chunks) > 2 else chunks
+    context = "\n\n---\n\n".join(body_chunks[:10])
     user = f"Paper: {title}\n\nText:\n{context}"
     raw = complete(
         system=ANNOTATION_SYSTEM,
@@ -203,18 +219,26 @@ def generate_annotations(title: str, chunks: list[str]) -> list[dict]:
 
 
 TAGGING_SYSTEM = (
-    "You are a research librarian. Given a paper title and abstract, generate "
+    "You are a research librarian. Given a paper title and text excerpts, generate "
     "4-7 concise lowercase tags that categorise the paper.\n\n"
     "Return ONLY the tags, one per line. No bullets, numbers, or explanation.\n"
     "Good tags: specific topics, methods, domains — e.g. 'transformers', "
     "'protein folding', 'reinforcement learning', 'computer vision'.\n"
-    "Avoid: generic words like 'research', 'paper', 'study', 'analysis'."
+    "Avoid: generic words like 'research', 'paper', 'study', 'analysis'. "
+    "NEVER include: author names, institution names, journal names, or any proper noun "
+    "that is not a technical concept or scientific domain."
 )
 
 
-def generate_tags(title: str, abstract: str) -> list[str]:
+def generate_tags(title: str, abstract: str, body_chunks: list[str] | None = None) -> list[str]:
     """Return a list of lowercase tag strings for a paper."""
-    user = f"Title: {title}\n\nAbstract: {abstract or '(none)'}"
+    text_parts = [f"Title: {title}"]
+    if abstract and abstract.strip():
+        text_parts.append(f"Abstract: {abstract.strip()}")
+    if body_chunks:
+        sample = "\n\n".join(c[:400] for c in body_chunks[:3])
+        text_parts.append(f"Body excerpts:\n{sample}")
+    user = "\n\n".join(text_parts)
     try:
         raw = complete(
             system=TAGGING_SYSTEM,

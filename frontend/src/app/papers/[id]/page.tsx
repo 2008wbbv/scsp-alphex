@@ -254,7 +254,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
                 Click "Generate charts" to auto-extract quantitative data and visualize it.
               </p>
             )}
-            {charts.map((c, i) => (
+            {(charts ?? []).map((c, i) => (
               <div key={i} className="mb-4 last:mb-0">
                 <div className="mb-1 text-sm font-medium text-fg">{c.title}</div>
                 <p className="mb-2 text-xs text-muted">{c.explanation}</p>

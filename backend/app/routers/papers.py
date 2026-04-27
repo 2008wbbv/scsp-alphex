@@ -387,6 +387,27 @@ def _build_chunks(sb, paper_id: str, user_id: str, paper: dict) -> list[dict]:
         except Exception:
             pdf_bytes = None
 
+    if not pdf_bytes and paper.get("source_type") == "doi" and paper.get("source_url"):
+        doi = (
+            paper["source_url"]
+            .replace("https://doi.org/", "")
+            .replace("http://doi.org/", "")
+        )
+        try:
+            oa = _req.get(
+                f"https://api.unpaywall.org/v2/{doi}?email=alphex@alphex.app",
+                timeout=15,
+            )
+            if oa.status_code == 200:
+                best = (oa.json().get("best_oa_location") or {})
+                pdf_url = best.get("url_for_pdf")
+                if pdf_url:
+                    r = _req.get(pdf_url, timeout=30, headers={"User-Agent": "Alphex/1.0"})
+                    r.raise_for_status()
+                    pdf_bytes = r.content
+        except Exception:
+            pdf_bytes = None
+
     chunks: list[Chunk] = []
     if pdf_bytes:
         try:
@@ -424,6 +445,25 @@ def _build_chunks(sb, paper_id: str, user_id: str, paper: dict) -> list[dict]:
 
     for i in range(0, len(rows), 200):
         sb.table("chunks").insert(rows[i : i + 200]).execute()
+
+    # Regenerate tags now that we have full text (best-effort).
+    if len(chunks) > 1:
+        try:
+            from ..services.claude import generate_tags
+            body_samples = [c.content for c in chunks[2:5]]
+            new_tags = generate_tags(
+                paper.get("title") or "",
+                paper.get("abstract") or "",
+                body_chunks=body_samples,
+            )
+            if new_tags:
+                sb.table("tags").delete().eq("paper_id", paper_id).eq("user_id", user_id).execute()
+                sb.table("tags").insert([
+                    {"paper_id": paper_id, "user_id": user_id, "name": t}
+                    for t in new_tags
+                ]).execute()
+        except Exception:
+            pass
 
     return rows
 

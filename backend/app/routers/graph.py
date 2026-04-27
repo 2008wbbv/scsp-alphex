@@ -74,8 +74,11 @@ def make_graph(body: GraphIn, user: CurrentUser = CurrentUserDep):
                 status_code=500,
                 detail=f"Chart execution failed: {proc.stderr.decode(errors='replace')[:500]}",
             )
-        with open(out_path, "rb") as f:
-            png = f.read()
+        try:
+            with open(out_path, "rb") as f:
+                png = f.read()
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"Could not read chart output: {e}")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=500, detail="Chart generation timed out")
     finally:
@@ -121,8 +124,11 @@ def _run_chart_code(code: str) -> bytes:
                 status_code=500,
                 detail=f"Chart execution failed: {proc.stderr.decode(errors='replace')[:300]}",
             )
-        with open(out_path, "rb") as f:
-            return f.read()
+        try:
+            with open(out_path, "rb") as f:
+                return f.read()
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"Could not read chart output: {e}")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=500, detail="Chart timed out")
     finally:
@@ -158,8 +164,8 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
         or []
     )
 
-    # Auto-index if no chunks exist yet.
-    if not chunks:
+    # Auto-index if no chunks or only the abstract-fallback stub exists.
+    if len(chunks) <= 1:
         _build_chunks(sb, paper_id, user.id, paper)
         chunks = (
             sb.table("chunks")
@@ -194,6 +200,13 @@ def charts_from_paper(paper_id: str, user: CurrentUser = CurrentUserDep):
             continue
 
     if not results:
-        raise HTTPException(status_code=500, detail="Could not generate any charts from this paper.")
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No quantitative data found to chart. "
+                "This usually means the paper's full text isn't available — "
+                "try uploading the PDF manually via the library."
+            ),
+        )
 
     return {"charts": results}

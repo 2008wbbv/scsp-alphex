@@ -171,21 +171,26 @@ function ChatPageInner() {
           {/* Paper selector */}
           <div className="flex items-center gap-2">
             <BookOpen size={13} className="shrink-0 text-muted" />
-            <select
-              value={selectedPaperId ?? ""}
-              onChange={(e) => {
-                setSelectedPaperId(e.target.value || null);
-                setMessages([]);
-              }}
-              className="flex-1 rounded-md border border-border bg-panel px-2.5 py-1.5 text-xs text-fg focus:outline-none focus:border-fg/40"
-            >
-              <option value="">Entire library</option>
-              {papers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
+            <div className="relative flex-1">
+              <select
+                value={selectedPaperId ?? ""}
+                onChange={(e) => {
+                  setSelectedPaperId(e.target.value || null);
+                  setMessages([]);
+                }}
+                className="w-full appearance-none rounded-md border border-border bg-panel pl-2.5 pr-7 py-1.5 text-xs text-fg focus:outline-none focus:border-fg/40"
+              >
+                <option value="">Entire library</option>
+                {papers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 8 8">
+                <path d="M1 2.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             {selectedPaperId && (
               <button
                 onClick={() => { setSelectedPaperId(null); setMessages([]); }}
@@ -347,6 +352,7 @@ function Bubble({ msg }: { msg: Msg }) {
 }
 
 function renderCited(text: string, citations: Citation[]) {
+  if (!citations || !Array.isArray(citations)) return <span>{text}</span>;
   const byTag = new Map(citations.map((c) => [c.tag, c]));
   const parts = text.split(/(\[S\d+\])/g);
   return parts.map((part, i) => {

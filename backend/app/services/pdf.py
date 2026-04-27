@@ -39,9 +39,18 @@ def parse_pdf(data: bytes) -> ParsedPDF:
         authors = [a.strip() for a in authors_raw.replace(";", ",").split(",") if a.strip()]
 
         if not title and pages:
+            import re as _re
+            _skip = _re.compile(
+                r"^(doi[:\s]|https?://|10\.\d{4,}/|\d+\s*[\|/]\s*|"
+                r"vol\.?\s*\d|nature\b|science\b|cell\b|arxiv\b|preprint\b|"
+                r"received\b|accepted\b|published\b|copyright\b|©|\d{4}\s+\w+\s+\d+)",
+                _re.IGNORECASE,
+            )
             for line in pages[0].text.splitlines():
                 line = line.strip()
-                if 8 <= len(line) <= 200 and not line.lower().startswith(("abstract", "introduction")):
+                if 12 <= len(line) <= 200 and not _skip.search(line) and not line.lower().startswith(
+                    ("abstract", "introduction", "keywords", "figure", "table", "supplementary")
+                ):
                     title = line
                     break
     finally:
