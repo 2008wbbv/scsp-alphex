@@ -1,4 +1,3 @@
-import json
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -232,9 +231,9 @@ def get_references(paper_id: str, user: CurrentUser = CurrentUserDep):
         "?fields=title,authors,year,externalIds,url&limit=50"
     )
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Alphex/1.0"})
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            data = json.loads(resp.read())
+        r = _req.get(url, headers={"User-Agent": "Alphex/1.0"}, timeout=12)
+        r.raise_for_status()
+        data = r.json()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Semantic Scholar error: {exc}")
 

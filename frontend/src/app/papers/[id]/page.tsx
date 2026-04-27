@@ -139,9 +139,8 @@ export default function PaperPage({ params }: { params: { id: string } }) {
     }
   }
 
-  async function importRef(ref: any) {
-    const key = ref.arxiv_id || ref.doi || ref.title;
-    if (!key) return;
+  async function importRef(ref: any, idx: number) {
+    const key = ref.arxiv_id || ref.doi || ref.title || `ref-${idx}`;
     setImporting((prev) => ({ ...prev, [key]: "loading" }));
     try {
       if (ref.arxiv_id) {
@@ -389,11 +388,11 @@ export default function PaperPage({ params }: { params: { id: string } }) {
             {refsOpen && refs.length > 0 && (
               <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
                 {refs.map((ref, i) => {
-                  const key = ref.arxiv_id || ref.doi || ref.title || String(i);
+                  const key = ref.arxiv_id || ref.doi || ref.title || `ref-${i}`;
                   const importState = importing[key];
                   const canImport = !!(ref.arxiv_id || ref.doi);
                   return (
-                    <div key={i} className="rounded border border-border bg-panel2 p-2">
+                    <div key={key} className="rounded border border-border bg-panel2 p-2">
                       <div className="text-[11px] font-medium text-fg line-clamp-2 leading-snug">
                         {ref.url ? (
                           <a href={ref.url} target="_blank" rel="noreferrer" className="hover:text-accent transition-colors">
@@ -409,7 +408,7 @@ export default function PaperPage({ params }: { params: { id: string } }) {
                       )}
                       {canImport && (
                         <button
-                          onClick={() => importRef(ref)}
+                          onClick={() => importRef(ref, i)}
                           disabled={importState === "loading" || importState === "done"}
                           className={`mt-1.5 chip text-[10px] ${
                             importState === "done"

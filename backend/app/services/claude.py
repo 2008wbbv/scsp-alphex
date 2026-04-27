@@ -330,6 +330,23 @@ Rules:
 - Never invent results not present in the input"""
 
 
+def _extract_tagged_items(text: str, tag: str, prefix: str) -> list[str]:
+    """Extract lines starting with `prefix: ` from inside TAG_START / TAG_END blocks."""
+    items: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped == f"{tag}_START":
+            inside = True
+            continue
+        if stripped == f"{tag}_END":
+            inside = False
+            continue
+        if inside and stripped.startswith(f"{prefix}: "):
+            items.append(stripped[len(prefix) + 2:].strip())
+    return items
+
+
 def generate_research_questions(papers: list[dict], topics: str) -> dict:
     """Return {questions, gaps, hypotheses, procedure} from papers + topic keywords."""
     paper_context = "\n\n".join(
@@ -348,27 +365,11 @@ def generate_research_questions(papers: list[dict], topics: str) -> dict:
         max_tokens=2000,
         temperature=0.4,
     )
-
-    def _extract(tag: str, prefix: str) -> list[str]:
-        items: list[str] = []
-        inside = False
-        for line in raw.splitlines():
-            stripped = line.strip()
-            if stripped == f"{tag}_START":
-                inside = True
-                continue
-            if stripped == f"{tag}_END":
-                inside = False
-                continue
-            if inside and stripped.startswith(f"{prefix}: "):
-                items.append(stripped[len(prefix) + 2:].strip())
-        return items
-
     return {
-        "questions": _extract("QUESTIONS", "Q"),
-        "gaps": _extract("GAPS", "GAP"),
-        "hypotheses": _extract("HYPOTHESES", "H"),
-        "procedure": _extract("PROCEDURE", "STEP"),
+        "questions": _extract_tagged_items(raw, "QUESTIONS", "Q"),
+        "gaps": _extract_tagged_items(raw, "GAPS", "GAP"),
+        "hypotheses": _extract_tagged_items(raw, "HYPOTHESES", "H"),
+        "procedure": _extract_tagged_items(raw, "PROCEDURE", "STEP"),
     }
 
 

@@ -13,32 +13,13 @@ type Result = {
   procedure: string[];
 };
 
-const SECTION_ICONS = {
-  questions: Search,
-  gaps: BookOpen,
-  hypotheses: Lightbulb,
-  procedure: ListChecks,
-};
+type ResultKey = keyof Result;
 
-const SECTION_LABELS: Record<keyof Result, string> = {
-  questions: "Research Questions",
-  gaps: "Knowledge Gaps",
-  hypotheses: "Testable Hypotheses",
-  procedure: "Proposed Procedure",
-};
-
-const SECTION_COLORS: Record<keyof Result, string> = {
-  questions: "border-accent/40 bg-accent/5",
-  gaps: "border-amber-500/30 bg-amber-500/5",
-  hypotheses: "border-emerald-500/30 bg-emerald-500/5",
-  procedure: "border-indigo-500/30 bg-indigo-500/5",
-};
-
-const SECTION_DOT: Record<keyof Result, string> = {
-  questions: "bg-accent",
-  gaps: "bg-amber-400",
-  hypotheses: "bg-emerald-400",
-  procedure: "bg-indigo-400",
+const SECTIONS: Record<ResultKey, { Icon: React.ElementType; label: string; colors: string; dot: string }> = {
+  questions: { Icon: Search,     label: "Research Questions",   colors: "border-accent/40 bg-accent/5",           dot: "bg-accent"      },
+  gaps:      { Icon: BookOpen,   label: "Knowledge Gaps",       colors: "border-amber-500/30 bg-amber-500/5",     dot: "bg-amber-400"   },
+  hypotheses:{ Icon: Lightbulb,  label: "Testable Hypotheses",  colors: "border-emerald-500/30 bg-emerald-500/5", dot: "bg-emerald-400" },
+  procedure: { Icon: ListChecks, label: "Proposed Procedure",   colors: "border-indigo-500/30 bg-indigo-500/5",   dot: "bg-indigo-400"  },
 };
 
 export default function ResearchPage() {
@@ -214,18 +195,18 @@ export default function ResearchPage() {
             )}
             {result && (
               <div className="grid gap-4 sm:grid-cols-2">
-                {(Object.keys(SECTION_LABELS) as (keyof Result)[]).map((key) => {
-                  const Icon = SECTION_ICONS[key];
+                {(Object.keys(SECTIONS) as ResultKey[]).map((key) => {
+                  const { Icon, label, colors, dot } = SECTIONS[key];
                   const items = result[key];
                   return (
                     <div
                       key={key}
-                      className={`rounded-lg border p-4 ${SECTION_COLORS[key]}`}
+                      className={`rounded-lg border p-4 ${colors}`}
                     >
                       <div className="mb-3 flex items-center gap-2">
                         <Icon size={14} className="shrink-0 text-fg/60" />
                         <h3 className="text-xs font-semibold uppercase tracking-widest text-fg/70">
-                          {SECTION_LABELS[key]}
+                          {label}
                         </h3>
                         <span className="ml-auto rounded-full bg-border px-1.5 py-0.5 text-[10px] text-muted">
                           {items.length}
@@ -238,7 +219,7 @@ export default function ResearchPage() {
                           {items.map((item, i) => (
                             <li key={i} className="flex gap-2.5 text-xs leading-relaxed text-fg/80">
                               <span
-                                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${SECTION_DOT[key]}`}
+                                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`}
                               />
                               <span>
                                 {key === "procedure" && (
