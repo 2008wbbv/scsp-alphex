@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -11,6 +13,104 @@ from ..services.embeddings import embed_texts
 from ..services.pdf import parse_pdf
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
+
+
+# ---------------------------------------------------------------------------
+# BibTeX helpers
+# ---------------------------------------------------------------------------
+
+def _parse_bibtex(content: str) -> list[dict]:
+    """Parse a BibTeX file into a list of field dicts. Handles nested braces."""
+    skip = {"preamble", "string", "comment"}
+    entries: list[dict] = []
+    i, n = 0, len(content)
+
+    while i < n:
+        at = content.find("@", i)
+        if at == -1:
+            break
+        i = at + 1
+        m = re.match(r"(\w+)\s*\{", content[i:], re.IGNORECASE)
+        if not m:
+            continue
+        etype = m.group(1).lower()
+        i += m.end()
+
+        # Walk to the matching closing brace.
+        depth, start = 1, i
+        while i < n and depth > 0:
+            c = content[i]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            i += 1
+        body = content[start : i - 1]
+
+        if etype in skip:
+            continue
+
+        comma = body.find(",")
+        if comma == -1:
+            continue
+        fields = _parse_bibtex_fields(body[comma + 1 :])
+        if fields:
+            entries.append(fields)
+
+    return entries
+
+
+def _parse_bibtex_fields(s: str) -> dict:
+    fields: dict[str, str] = {}
+    pos, n = 0, len(s)
+    while pos < n:
+        m = re.search(r"(\w+)\s*=\s*", s[pos:])
+        if not m:
+            break
+        fname = m.group(1).lower()
+        pos += m.end()
+        if pos >= n:
+            break
+        ch = s[pos]
+        if ch == "{":
+            depth, pos = 1, pos + 1
+            start = pos
+            while pos < n and depth > 0:
+                if s[pos] == "{":
+                    depth += 1
+                elif s[pos] == "}":
+                    depth -= 1
+                pos += 1
+            value = re.sub(r"\{([^{}]*)\}", r"\1", s[start : pos - 1]).strip()
+        elif ch == '"':
+            pos += 1
+            start = pos
+            while pos < n and s[pos] != '"':
+                if s[pos] == "\\":
+                    pos += 1
+                pos += 1
+            value = s[start:pos].strip()
+            pos += 1
+        else:
+            m2 = re.match(r"([^\s,}]+)", s[pos:])
+            if not m2:
+                break
+            value = m2.group(1)
+            pos += m2.end()
+        fields[fname] = value
+    return fields
+
+
+def _parse_bibtex_authors(raw: str) -> list[str]:
+    result = []
+    for part in re.split(r"\s+and\s+", raw, flags=re.IGNORECASE):
+        part = part.strip()
+        if "," in part:
+            last, first = [p.strip() for p in part.split(",", 1)]
+            result.append(f"{first} {last}".strip())
+        else:
+            result.append(part)
+    return [a for a in result if a]
 
 
 class ArxivIn(BaseModel):
@@ -258,3 +358,102 @@ def ingest_doi(body: DoiIn, user: CurrentUser = CurrentUserDep):
         pass
 
     return {**paper, "n_chunks": n_chunks}
+
+
+@router.post("/bibtex")
+async def ingest_bibtex(
+    file: UploadFile = File(...),
+    user: CurrentUser = CurrentUserDep,
+):
+    """Bulk-import papers from a Zotero / Mendeley .bib export.
+
+    Stores metadata + abstract immediately; full PDF indexing can be triggered
+    later via the Re-index button on any individual paper.
+    """
+    fname = (file.filename or "").lower()
+    if not fname.endswith(".bib"):
+        raise HTTPException(status_code=400, detail="Upload a .bib file exported from Zotero or Mendeley")
+
+    content = (await file.read()).decode("utf-8", errors="replace")
+    entries = _parse_bibtex(content)[:200]
+    if not entries:
+        raise HTTPException(status_code=422, detail="No BibTeX entries found in file")
+
+    sb = get_supabase()
+    imported = 0
+    errors: list[dict] = []
+    to_embed: list[tuple[str, str]] = []  # (paper_id, text)
+
+    for entry in entries:
+        title = entry.get("title", "").strip()
+        if not title:
+            continue
+
+        authors = _parse_bibtex_authors(entry.get("author", ""))
+        year_str = entry.get("year", "")
+        year = int(year_str) if year_str.isdigit() else None
+        abstract = entry.get("abstract", "").strip()
+        doi = entry.get("doi", "").strip()
+        url = entry.get("url", "").strip()
+
+        arxiv_id: str | None = None
+        if entry.get("archiveprefix", "").lower() == "arxiv" and entry.get("eprint"):
+            arxiv_id = entry["eprint"].strip()
+        elif "arxiv.org/abs/" in url:
+            arxiv_id = url.split("/abs/")[-1].rsplit("v", 1)[0]
+
+        source_url = (
+            url
+            or (f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else None)
+            or (f"https://doi.org/{doi}" if doi else None)
+        )
+        source_type = "arxiv" if arxiv_id else ("doi" if doi else "bibtex")
+
+        try:
+            result = (
+                sb.table("papers")
+                .insert({
+                    "user_id": user.id,
+                    "title": title,
+                    "authors": authors,
+                    "year": year,
+                    "abstract": abstract or None,
+                    "source_url": source_url,
+                    "source_type": source_type,
+                    "status": "unread",
+                })
+                .execute()
+            )
+            if not result.data:
+                errors.append({"title": title[:80], "reason": "DB insert failed"})
+                continue
+            paper_id = result.data[0]["id"]
+            text = "\n\n".join(filter(None, [title, abstract]))
+            if text.strip():
+                to_embed.append((paper_id, text[:2000]))
+            imported += 1
+        except Exception as exc:
+            errors.append({"title": title[:80], "reason": str(exc)[:80]})
+
+    # Batch-embed all abstracts in one pass (64 at a time).
+    if to_embed:
+        try:
+            chunk_rows: list[dict] = []
+            for i in range(0, len(to_embed), 64):
+                batch = to_embed[i : i + 64]
+                vectors = embed_texts([t for _, t in batch])
+                for (pid, txt), vec in zip(batch, vectors):
+                    chunk_rows.append({
+                        "paper_id": pid,
+                        "user_id": user.id,
+                        "content": txt,
+                        "embedding": vec,
+                        "chunk_index": 0,
+                        "page": None,
+                    })
+            for i in range(0, len(chunk_rows), 200):
+                sb.table("chunks").insert(chunk_rows[i : i + 200]).execute()
+        except Exception:
+            pass  # Embedding failure is non-fatal; user can re-index later.
+
+    return {"imported": imported, "total": len(entries), "errors": errors[:20]}

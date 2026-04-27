@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
 from ..services.chunking import Chunk, chunk_pages
-from ..services.claude import compare_papers, generate_annotations, generate_research_questions
+from ..services.claude import compare_papers, generate_annotations, generate_literature_review, generate_research_questions
 from ..services.embeddings import embed_texts
 from ..services.pdf import parse_pdf
 
@@ -34,6 +34,11 @@ class ResearchQuestionsIn(BaseModel):
 class CompareIn(BaseModel):
     paper_id_1: str
     paper_id_2: str
+
+
+class LitReviewIn(BaseModel):
+    paper_ids: list[str]
+    focus: str = ""
 
 
 @router.get("")
@@ -147,6 +152,37 @@ def arxiv_search(q: str, limit: int = 10):
         ]
         results.append({"arxiv_id": arxiv_id, "title": title, "abstract": summary[:500], "authors": authors, "year": year})
     return {"results": results}
+
+
+@router.post("/literature-review")
+def literature_review(body: LitReviewIn, user: CurrentUser = CurrentUserDep):
+    if not body.paper_ids:
+        raise HTTPException(status_code=422, detail="Select at least one paper")
+    sb = get_supabase()
+    papers = (
+        sb.table("papers")
+        .select("id,title,authors,year,summary,abstract")
+        .in_("id", body.paper_ids[:20])
+        .eq("user_id", user.id)
+        .execute()
+        .data
+        or []
+    )
+    if not papers:
+        raise HTTPException(status_code=422, detail="No valid papers found")
+    by_id = {p["id"]: p for p in papers}
+    ordered = [by_id[pid] for pid in body.paper_ids if pid in by_id]
+    try:
+        text = generate_literature_review(ordered, body.focus)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM error: {exc}")
+    return {
+        "text": text,
+        "papers": [
+            {"id": p["id"], "title": p["title"], "year": p.get("year"), "authors": p.get("authors")}
+            for p in ordered
+        ],
+    }
 
 
 @router.post("/research-questions")

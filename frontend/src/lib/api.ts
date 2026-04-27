@@ -123,6 +123,28 @@ export const api = {
     return handle<any>(res);
   },
 
+  async importBibtex(file: File) {
+    const headers = await authHeaders();
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await safeFetch(`${API_URL}/ingest/bibtex`, {
+      method: "POST",
+      headers,
+      body: fd,
+    });
+    return handle<{ imported: number; total: number; errors: { title: string; reason: string }[] }>(res);
+  },
+
+  async generateLitReview(paperIds: string[], focus: string) {
+    const headers = await authHeaders({ "Content-Type": "application/json" });
+    const res = await safeFetch(`${API_URL}/papers/literature-review`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paper_ids: paperIds, focus }),
+    });
+    return handle<{ text: string; papers: { id: string; title: string; year: number | null; authors: string[] | null }[] }>(res);
+  },
+
   async ingestDoi(doi: string) {
     const headers = await authHeaders({ "Content-Type": "application/json" });
     const res = await safeFetch(`${API_URL}/ingest/doi`, {

@@ -3,19 +3,20 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BookOpen, Columns2, FlaskConical, Lightbulb, MessageSquare, Search, FileText, Network } from "lucide-react";
+import { BookOpen, BookText, Columns2, FlaskConical, Lightbulb, MessageSquare, Search, FileText, Network } from "lucide-react";
 
 import { supabaseBrowser } from "@/lib/supabase";
 
 const NAV = [
-  { href: "/library",  label: "Library",   Icon: BookOpen },
-  { href: "/chat",     label: "Assistant",  Icon: MessageSquare },
-  { href: "/search",   label: "Search",     Icon: Search },
-  { href: "/notes",    label: "Notes",      Icon: FileText },
-  { href: "/graph",    label: "Graph",      Icon: Network },
-  { href: "/forge",    label: "Forge",      Icon: FlaskConical },
-  { href: "/research", label: "Research",   Icon: Lightbulb },
-  { href: "/compare",  label: "Compare",    Icon: Columns2 },
+  { href: "/library",    label: "Library",    Icon: BookOpen },
+  { href: "/chat",       label: "Assistant",  Icon: MessageSquare },
+  { href: "/search",     label: "Search",     Icon: Search },
+  { href: "/notes",      label: "Notes",      Icon: FileText },
+  { href: "/graph",      label: "Graph",      Icon: Network },
+  { href: "/forge",      label: "Forge",      Icon: FlaskConical },
+  { href: "/research",   label: "Research",   Icon: Lightbulb },
+  { href: "/compare",    label: "Compare",    Icon: Columns2 },
+  { href: "/lit-review", label: "Lit Review", Icon: BookText },
 ];
 
 export default function Sidebar() {

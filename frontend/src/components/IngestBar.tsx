@@ -1,23 +1,26 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, Link2, Hash } from "lucide-react";
+import { Upload, Link2, Hash, BookMarked } from "lucide-react";
 
 import { api } from "@/lib/api";
 
-type Tab = "pdf" | "arxiv" | "doi";
+type Tab = "pdf" | "arxiv" | "doi" | "bibtex";
 
 const TABS: { key: Tab; label: string; Icon: React.ElementType }[] = [
-  { key: "pdf",   label: "Upload PDF", Icon: Upload },
-  { key: "arxiv", label: "arXiv",      Icon: Hash },
-  { key: "doi",   label: "DOI",        Icon: Link2 },
+  { key: "pdf",    label: "Upload PDF",   Icon: Upload },
+  { key: "arxiv",  label: "arXiv",        Icon: Hash },
+  { key: "doi",    label: "DOI",          Icon: Link2 },
+  { key: "bibtex", label: "Zotero / .bib", Icon: BookMarked },
 ];
 
 export default function IngestBar({ onIngested }: { onIngested: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const bibRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("pdf");
   const [arxiv, setArxiv] = useState("");
   const [doi, setDoi] = useState("");
+  const [bibResult, setBibResult] = useState<{ imported: number; total: number; errors: { title: string; reason: string }[] } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -73,6 +76,22 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
       setError(e.message ?? "DOI import failed");
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function onBibtex(file: File) {
+    setError(null);
+    setBibResult(null);
+    setBusy("bibtex");
+    try {
+      const result = await api.importBibtex(file);
+      setBibResult(result);
+      if (result.imported > 0) onIngested();
+    } catch (e: any) {
+      setError(e.message ?? "BibTeX import failed");
+    } finally {
+      setBusy(null);
+      if (bibRef.current) bibRef.current.value = "";
     }
   }
 
@@ -153,6 +172,63 @@ export default function IngestBar({ onIngested }: { onIngested: () => void }) {
               {busy === "doi" ? "Importing…" : "Import"}
             </button>
           </form>
+        )}
+
+        {tab === "bibtex" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => bibRef.current?.click()}
+                disabled={busy !== null}
+                className="btn btn-primary gap-2 disabled:opacity-40"
+              >
+                <BookMarked size={14} />
+                {busy === "bibtex" ? "Importing…" : "Choose .bib file"}
+              </button>
+              <p className="text-xs text-muted">
+                {busy === "bibtex"
+                  ? "Parsing entries and embedding abstracts…"
+                  : "Export from Zotero → File → Export Library → BibTeX"}
+              </p>
+              <input
+                ref={bibRef}
+                type="file"
+                accept=".bib"
+                disabled={busy !== null}
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) onBibtex(f); }}
+              />
+            </div>
+            {bibResult && (
+              <div className="rounded-md border border-border bg-panel2 px-3 py-2.5 text-xs space-y-1">
+                <div className="font-medium text-fg">
+                  {bibResult.imported} of {bibResult.total} papers imported
+                  {bibResult.imported === bibResult.total && (
+                    <span className="ml-2 text-emerald-400">✓</span>
+                  )}
+                </div>
+                {bibResult.errors.length > 0 && (
+                  <details className="text-muted">
+                    <summary className="cursor-pointer hover:text-fg">
+                      {bibResult.errors.length} skipped — click to see
+                    </summary>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {bibResult.errors.map((e, i) => (
+                        <li key={i} className="text-[10px]">
+                          <span className="text-fg/70">{e.title}</span>
+                          {" — "}
+                          <span className="text-red-400/80">{e.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                <p className="text-muted/60 text-[10px]">
+                  Papers are searchable immediately. Click "Re-index snippets" on any paper to enable full AI chat.
+                </p>
+              </div>
+            )}
+          </div>
         )}
 
         {(error || success) && (

@@ -301,6 +301,43 @@ def generate_forge_draft(title: str, notes: str, paper_contexts: list[str]) -> l
     return sections
 
 
+LITERATURE_REVIEW_SYSTEM = """You are an expert academic writing assistant. Write a comprehensive literature review from the provided numbered sources.
+
+Requirements:
+- Open with a focused introductory paragraph establishing the research area and scope
+- Group papers into 2–4 thematic sections with ## subheadings (do NOT use a ## Introduction heading — start prose directly)
+- Within each theme, synthesise findings across multiple papers — do NOT summarise each paper individually in sequence
+- Cite inline as [S1], [S2], [S3] or combined [S1, S3] matching the numbered sources provided
+- End with a ## Research Gaps and Future Directions section grounded in the sources
+- Write in formal, concise academic prose — 700–1000 words
+- Return ONLY the review text in markdown. No preamble, no commentary, no fences."""
+
+
+def generate_literature_review(papers: list[dict], focus: str) -> str:
+    """Return a markdown literature review grounded in the provided papers."""
+    sources = "\n\n".join(
+        "[S{n}] {title}{year}\n{authors}{body}".format(
+            n=i + 1,
+            title=p.get("title", "Untitled"),
+            year=f" ({p['year']})" if p.get("year") else "",
+            authors=f"Authors: {', '.join((p.get('authors') or [])[:3])}\n" if p.get("authors") else "",
+            body=p.get("summary") or p.get("abstract") or "(no summary available)",
+        )
+        for i, p in enumerate(papers[:20])
+    )
+    user = (
+        f"Sources:\n{sources}\n\n"
+        + (f"Focus: {focus}\n\n" if focus.strip() else "")
+        + "Write the literature review now."
+    )
+    return complete(
+        system=LITERATURE_REVIEW_SYSTEM,
+        messages=[{"role": "user", "content": user}],
+        max_tokens=2500,
+        temperature=0.3,
+    )
+
+
 RESEARCH_QUESTIONS_SYSTEM = """You are a research methodology expert. Given paper summaries and optional topics, generate focused research questions, knowledge gaps, hypotheses, and a step-by-step procedure.
 
 Return EXACTLY this format:
