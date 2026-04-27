@@ -301,6 +301,133 @@ def generate_forge_draft(title: str, notes: str, paper_contexts: list[str]) -> l
     return sections
 
 
+RESEARCH_QUESTIONS_SYSTEM = """You are a research methodology expert. Given paper summaries and optional topics, generate focused research questions, knowledge gaps, hypotheses, and a step-by-step procedure.
+
+Return EXACTLY this format:
+
+QUESTIONS_START
+Q: <specific, answerable research question>
+QUESTIONS_END
+
+GAPS_START
+GAP: <identified gap or limitation in current knowledge>
+GAPS_END
+
+HYPOTHESES_START
+H: <testable hypothesis with clear independent and dependent variables>
+HYPOTHESES_END
+
+PROCEDURE_START
+STEP: <numbered procedure step>
+PROCEDURE_END
+
+Rules:
+- Generate 3-5 research questions grounded in the provided papers
+- Identify 3-4 knowledge gaps
+- Propose 2-3 testable hypotheses
+- Outline 5-8 concrete procedure steps
+- Incorporate user-provided topics if given; otherwise infer from papers
+- Never invent results not present in the input"""
+
+
+def generate_research_questions(papers: list[dict], topics: str) -> dict:
+    """Return {questions, gaps, hypotheses, procedure} from papers + topic keywords."""
+    paper_context = "\n\n".join(
+        f"Paper {i + 1}: {p.get('title', 'Untitled')}\n"
+        f"Summary: {p.get('summary') or p.get('abstract') or '(none)'}"
+        for i, p in enumerate(papers[:8])
+    )
+    user = (
+        f"Papers in my library:\n{paper_context}\n\n"
+        f"Research topics / focus: {topics or '(open-ended — infer from papers)'}\n\n"
+        "Generate research questions, knowledge gaps, hypotheses, and a procedure."
+    )
+    raw = complete(
+        system=RESEARCH_QUESTIONS_SYSTEM,
+        messages=[{"role": "user", "content": user}],
+        max_tokens=2000,
+        temperature=0.4,
+    )
+
+    def _extract(tag: str, prefix: str) -> list[str]:
+        items: list[str] = []
+        inside = False
+        for line in raw.splitlines():
+            stripped = line.strip()
+            if stripped == f"{tag}_START":
+                inside = True
+                continue
+            if stripped == f"{tag}_END":
+                inside = False
+                continue
+            if inside and stripped.startswith(f"{prefix}: "):
+                items.append(stripped[len(prefix) + 2:].strip())
+        return items
+
+    return {
+        "questions": _extract("QUESTIONS", "Q"),
+        "gaps": _extract("GAPS", "GAP"),
+        "hypotheses": _extract("HYPOTHESES", "H"),
+        "procedure": _extract("PROCEDURE", "STEP"),
+    }
+
+
+COMPARE_SYSTEM = """You are a research analyst. Compare two academic papers across key dimensions.
+
+Return EXACTLY this format:
+
+ASPECT_START
+LABEL: <aspect name>
+PAPER1: <analysis for paper 1>
+PAPER2: <analysis for paper 2>
+INSIGHT: <key similarity, difference, or synthesis — 1-2 sentences>
+ASPECT_END
+
+Compare across: Research Question, Methodology, Dataset / Evaluation, Key Results, Limitations, Overall Contribution.
+Be specific; cite numbers or claims where available in the summaries."""
+
+
+def compare_papers(paper1: dict, paper2: dict) -> list[dict]:
+    """Return a list of comparison aspect dicts: {label, paper1, paper2, insight}."""
+    def _fmt(p: dict) -> str:
+        parts = [f"Title: {p.get('title', 'Untitled')}"]
+        if p.get("authors"):
+            parts.append(f"Authors: {', '.join((p['authors'] or [])[:3])}")
+        if p.get("year"):
+            parts.append(f"Year: {p['year']}")
+        text = p.get("summary") or p.get("abstract") or ""
+        if text:
+            parts.append(f"Summary: {text[:700]}")
+        return "\n".join(parts)
+
+    user = (
+        f"PAPER 1:\n{_fmt(paper1)}\n\n"
+        f"PAPER 2:\n{_fmt(paper2)}\n\n"
+        "Compare these papers across the key dimensions."
+    )
+    raw = complete(
+        system=COMPARE_SYSTEM,
+        messages=[{"role": "user", "content": user}],
+        max_tokens=2000,
+        temperature=0.3,
+    )
+
+    aspects: list[dict] = []
+    for block in raw.split("ASPECT_START"):
+        block = block.strip()
+        if "ASPECT_END" not in block:
+            continue
+        block = block[: block.index("ASPECT_END")].strip()
+        fields: dict[str, str] = {}
+        for line in block.splitlines():
+            for key in ("LABEL", "PAPER1", "PAPER2", "INSIGHT"):
+                if line.startswith(f"{key}: "):
+                    fields[key.lower()] = line[len(key) + 2:].strip()
+        if fields.get("label"):
+            aspects.append(fields)
+    return aspects
+
+
 def generate_chart_code(description: str) -> str:
     user = (
         f"Chart request: {description}\n\n"

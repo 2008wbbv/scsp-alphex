@@ -1,3 +1,4 @@
+import json
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -10,7 +11,7 @@ from pydantic import BaseModel
 from ..auth import CurrentUser, CurrentUserDep
 from ..db import get_supabase
 from ..services.chunking import Chunk, chunk_pages
-from ..services.claude import generate_annotations
+from ..services.claude import compare_papers, generate_annotations, generate_research_questions
 from ..services.embeddings import embed_texts
 from ..services.pdf import parse_pdf
 
@@ -24,6 +25,16 @@ class PaperUpdate(BaseModel):
 
 class TagIn(BaseModel):
     name: str
+
+
+class ResearchQuestionsIn(BaseModel):
+    paper_ids: list[str]
+    topics: str = ""
+
+
+class CompareIn(BaseModel):
+    paper_id_1: str
+    paper_id_2: str
 
 
 @router.get("")
@@ -137,6 +148,120 @@ def arxiv_search(q: str, limit: int = 10):
         ]
         results.append({"arxiv_id": arxiv_id, "title": title, "abstract": summary[:500], "authors": authors, "year": year})
     return {"results": results}
+
+
+@router.post("/research-questions")
+def research_questions(body: ResearchQuestionsIn, user: CurrentUser = CurrentUserDep):
+    sb = get_supabase()
+    papers = (
+        sb.table("papers")
+        .select("id,title,summary,abstract")
+        .in_("id", body.paper_ids)
+        .eq("user_id", user.id)
+        .execute()
+        .data
+        or []
+    )
+    if not papers:
+        raise HTTPException(status_code=422, detail="No valid papers found.")
+    try:
+        result = generate_research_questions(papers, body.topics)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM error: {exc}")
+    return result
+
+
+@router.post("/compare")
+def compare(body: CompareIn, user: CurrentUser = CurrentUserDep):
+    sb = get_supabase()
+    papers = (
+        sb.table("papers")
+        .select("id,title,authors,year,summary,abstract")
+        .in_("id", [body.paper_id_1, body.paper_id_2])
+        .eq("user_id", user.id)
+        .execute()
+        .data
+        or []
+    )
+    by_id = {p["id"]: p for p in papers}
+    p1 = by_id.get(body.paper_id_1)
+    p2 = by_id.get(body.paper_id_2)
+    if not p1 or not p2:
+        raise HTTPException(status_code=404, detail="One or both papers not found.")
+    try:
+        aspects = compare_papers(p1, p2)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM error: {exc}")
+    return {
+        "aspects": aspects,
+        "paper1": {"id": p1["id"], "title": p1["title"]},
+        "paper2": {"id": p2["id"], "title": p2["title"]},
+    }
+
+
+@router.get("/{paper_id}/references")
+def get_references(paper_id: str, user: CurrentUser = CurrentUserDep):
+    """Fetch the reference list for a paper via Semantic Scholar."""
+    sb = get_supabase()
+    paper = (
+        sb.table("papers")
+        .select("id,title,source_type,source_url")
+        .eq("id", paper_id)
+        .eq("user_id", user.id)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    ss_id = None
+    if paper.get("source_type") == "arxiv" and paper.get("source_url"):
+        raw_arxiv = paper["source_url"].split("/abs/")[-1].rsplit("v", 1)[0]
+        if raw_arxiv:
+            ss_id = f"arXiv:{raw_arxiv}"
+
+    if not ss_id:
+        raise HTTPException(
+            status_code=422,
+            detail="References are available for arXiv papers only.",
+        )
+
+    url = (
+        f"https://api.semanticscholar.org/graph/v1/paper/{ss_id}/references"
+        "?fields=title,authors,year,externalIds,url&limit=50"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Alphex/1.0"})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read())
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Semantic Scholar error: {exc}")
+
+    refs = []
+    for item in data.get("data", []):
+        cited = item.get("citedPaper") or {}
+        if not cited.get("title"):
+            continue
+        eids = cited.get("externalIds") or {}
+        arxiv_id = eids.get("ArXiv")
+        doi = eids.get("DOI")
+        url_field = cited.get("url") or (
+            f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else None
+        )
+        refs.append(
+            {
+                "title": cited.get("title", ""),
+                "authors": [
+                    a.get("name", "") for a in (cited.get("authors") or [])[:5]
+                ],
+                "year": cited.get("year"),
+                "arxiv_id": arxiv_id,
+                "doi": doi,
+                "url": url_field,
+            }
+        )
+    return {"references": refs}
 
 
 @router.get("/{paper_id}")

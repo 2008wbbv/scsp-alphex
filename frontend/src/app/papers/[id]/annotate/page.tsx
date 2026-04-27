@@ -2,15 +2,20 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Check } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
 
 type Term = { term: string; definition: string };
 type Chunk = { content: string; page: number | null; chunk_index: number };
-
 type Segment = { text: string; term?: Term };
+
+type Popover = {
+  text: string;
+  x: number;
+  y: number;
+};
 
 function segmentText(text: string, terms: Term[]): Segment[] {
   if (!terms.length) return [{ text }];
@@ -104,6 +109,10 @@ export default function AnnotatePage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paperTitle, setPaperTitle] = useState("");
+  const [popover, setPopover] = useState<Popover | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState(false);
+  const readerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +136,52 @@ export default function AnnotatePage({ params }: { params: { id: string } }) {
     load();
   }, [load]);
 
+  function handleMouseUp(e: React.MouseEvent) {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      setPopover(null);
+      return;
+    }
+    const text = sel.toString().trim();
+    if (text.length < 5) {
+      setPopover(null);
+      return;
+    }
+    try {
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const container = readerRef.current;
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+      setPopover({
+        text,
+        x: rect.left + rect.width / 2 - containerRect.left,
+        y: rect.top - containerRect.top - 8,
+      });
+    } catch {
+      setPopover(null);
+    }
+  }
+
+  async function saveNote() {
+    if (!popover) return;
+    setSaving(true);
+    try {
+      await api.createNote({
+        content: popover.text,
+        linked_paper_id: params.id,
+      });
+      setSavedMsg(true);
+      setPopover(null);
+      window.getSelection()?.removeAllRanges();
+      setTimeout(() => setSavedMsg(false), 2500);
+    } catch {
+      // leave popover visible
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Shell>
       <div className="mx-auto max-w-5xl p-6">
@@ -136,6 +191,12 @@ export default function AnnotatePage({ params }: { params: { id: string } }) {
           </Link>
           {paperTitle && (
             <span className="truncate text-sm font-medium text-fg">{paperTitle}</span>
+          )}
+          {savedMsg && (
+            <span className="ml-auto flex items-center gap-1 text-xs text-emerald-400">
+              <Check size={12} />
+              Saved as note
+            </span>
           )}
         </div>
 
@@ -175,13 +236,50 @@ export default function AnnotatePage({ params }: { params: { id: string } }) {
                   <span className="border-b border-dashed border-fg/40 text-fg">
                     underlined terms
                   </span>{" "}
-                  to see definitions.
+                  to see definitions.{" "}
+                  <span className="text-accent/70">Select any text</span> to save it as a note.
                 </div>
-                {chunks.map((chunk, i) => (
-                  <div key={i} className="card">
-                    <AnnotatedChunk chunk={chunk} terms={terms} />
-                  </div>
-                ))}
+
+                {/* Selectable reader area */}
+                <div
+                  ref={readerRef}
+                  className="relative"
+                  onMouseUp={handleMouseUp}
+                >
+                  {chunks.map((chunk, i) => (
+                    <div key={i} className="card mb-6">
+                      <AnnotatedChunk chunk={chunk} terms={terms} />
+                    </div>
+                  ))}
+
+                  {/* Highlight popover */}
+                  {popover && (
+                    <div
+                      className="absolute z-50 -translate-x-1/2 -translate-y-full"
+                      style={{ left: popover.x, top: popover.y }}
+                    >
+                      <div className="rounded-lg border border-border bg-panel shadow-xl px-3 py-2 flex items-center gap-2">
+                        <span className="max-w-[200px] truncate text-[11px] text-muted italic">
+                          "{popover.text.slice(0, 60)}{popover.text.length > 60 ? "…" : ""}"
+                        </span>
+                        <button
+                          onClick={saveNote}
+                          disabled={saving}
+                          className="btn btn-primary px-2 py-1 text-[11px] shrink-0 gap-1"
+                        >
+                          {saving ? "Saving…" : "Save note"}
+                        </button>
+                        <button
+                          onClick={() => { setPopover(null); window.getSelection()?.removeAllRanges(); }}
+                          className="text-muted hover:text-fg text-xs"
+                          aria-label="Dismiss"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

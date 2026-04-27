@@ -18,6 +18,11 @@ export default function PaperPage({ params }: { params: { id: string } }) {
   const [chartsError, setChartsError] = useState<string | null>(null);
   const [rechunking, setRechunking] = useState(false);
   const [rechunkMsg, setRechunkMsg] = useState<string | null>(null);
+  const [refs, setRefs] = useState<any[]>([]);
+  const [refsLoading, setRefsLoading] = useState(false);
+  const [refsError, setRefsError] = useState<string | null>(null);
+  const [refsOpen, setRefsOpen] = useState(false);
+  const [importing, setImporting] = useState<Record<string, "loading" | "done" | "error">>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +122,38 @@ export default function PaperPage({ params }: { params: { id: string } }) {
       if (out.bib.trim()) downloadFile(out.bib, "references.bib", "text/plain");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function fetchRefs() {
+    setRefsLoading(true);
+    setRefsError(null);
+    setRefsOpen(true);
+    try {
+      const { references } = await api.getPaperReferences(params.id);
+      setRefs(references);
+    } catch (e: any) {
+      setRefsError(e.message ?? "Failed to fetch references");
+    } finally {
+      setRefsLoading(false);
+    }
+  }
+
+  async function importRef(ref: any) {
+    const key = ref.arxiv_id || ref.doi || ref.title;
+    if (!key) return;
+    setImporting((prev) => ({ ...prev, [key]: "loading" }));
+    try {
+      if (ref.arxiv_id) {
+        await api.ingestArxiv(ref.arxiv_id);
+      } else if (ref.doi) {
+        await api.ingestDoi(ref.doi);
+      } else {
+        throw new Error("No importable ID");
+      }
+      setImporting((prev) => ({ ...prev, [key]: "done" }));
+    } catch {
+      setImporting((prev) => ({ ...prev, [key]: "error" }));
     }
   }
 
@@ -330,6 +367,78 @@ export default function PaperPage({ params }: { params: { id: string } }) {
           <Link href={`/papers/${paper.id}/annotate`} className="btn w-full justify-center">
             View with AI annotations
           </Link>
+
+          {/* Citation network */}
+          <div className="card space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-medium text-fg">Citation Network</div>
+              <button
+                onClick={refsOpen ? () => setRefsOpen(false) : fetchRefs}
+                disabled={refsLoading}
+                className="chip hover:text-fg disabled:opacity-50 text-[11px]"
+              >
+                {refsLoading ? "Fetching…" : refsOpen ? "hide" : "Fetch references"}
+              </button>
+            </div>
+            {refsError && (
+              <p className="text-[11px] text-red-400">{refsError}</p>
+            )}
+            {refsOpen && !refsLoading && refs.length === 0 && !refsError && (
+              <p className="text-xs text-muted">No references found.</p>
+            )}
+            {refsOpen && refs.length > 0 && (
+              <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                {refs.map((ref, i) => {
+                  const key = ref.arxiv_id || ref.doi || ref.title || String(i);
+                  const importState = importing[key];
+                  const canImport = !!(ref.arxiv_id || ref.doi);
+                  return (
+                    <div key={i} className="rounded border border-border bg-panel2 p-2">
+                      <div className="text-[11px] font-medium text-fg line-clamp-2 leading-snug">
+                        {ref.url ? (
+                          <a href={ref.url} target="_blank" rel="noreferrer" className="hover:text-accent transition-colors">
+                            {ref.title || "Untitled"}
+                          </a>
+                        ) : (ref.title || "Untitled")}
+                      </div>
+                      {ref.authors?.length > 0 && (
+                        <div className="mt-0.5 text-[10px] text-muted truncate">
+                          {ref.authors.slice(0, 3).join(", ")}
+                          {ref.year ? ` · ${ref.year}` : ""}
+                        </div>
+                      )}
+                      {canImport && (
+                        <button
+                          onClick={() => importRef(ref)}
+                          disabled={importState === "loading" || importState === "done"}
+                          className={`mt-1.5 chip text-[10px] ${
+                            importState === "done"
+                              ? "border-emerald-400/40 text-emerald-400"
+                              : importState === "error"
+                              ? "border-red-400/40 text-red-400"
+                              : "hover:text-fg hover:border-border/60"
+                          }`}
+                        >
+                          {importState === "loading"
+                            ? "importing…"
+                            : importState === "done"
+                            ? "✓ added"
+                            : importState === "error"
+                            ? "failed"
+                            : "import →"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {!refsOpen && !refsLoading && (
+              <p className="text-xs text-muted">
+                Fetch cited papers via Semantic Scholar and import them directly.
+              </p>
+            )}
+          </div>
 
           <div className="card space-y-2">
             <div className="text-xs font-medium text-fg">Re-index paper</div>

@@ -326,6 +326,36 @@ export const api = {
     return handle<any>(res);
   },
 
+  async generateResearchQuestions(paperIds: string[], topics: string) {
+    const headers = await authHeaders({ "Content-Type": "application/json" });
+    const res = await safeFetch(`${API_URL}/papers/research-questions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paper_ids: paperIds, topics }),
+    });
+    return handle<{ questions: string[]; gaps: string[]; hypotheses: string[]; procedure: string[] }>(res);
+  },
+
+  async comparePapers(paperId1: string, paperId2: string) {
+    const headers = await authHeaders({ "Content-Type": "application/json" });
+    const res = await safeFetch(`${API_URL}/papers/compare`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paper_id_1: paperId1, paper_id_2: paperId2 }),
+    });
+    return handle<{
+      aspects: { label: string; paper1: string; paper2: string; insight: string }[];
+      paper1: { id: string; title: string };
+      paper2: { id: string; title: string };
+    }>(res);
+  },
+
+  async getPaperReferences(paperId: string) {
+    const headers = await authHeaders();
+    const res = await safeFetch(`${API_URL}/papers/${paperId}/references`, { headers });
+    return handle<{ references: any[] }>(res);
+  },
+
   async exportLatex(payload: {
     title?: string;
     body: string;

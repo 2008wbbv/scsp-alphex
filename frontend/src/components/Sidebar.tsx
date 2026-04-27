@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BookOpen, FlaskConical, MessageSquare, Search, FileText, Network } from "lucide-react";
+import { BookOpen, Columns2, FlaskConical, Lightbulb, MessageSquare, Search, FileText, Network } from "lucide-react";
 
 import { supabaseBrowser } from "@/lib/supabase";
 
@@ -14,6 +14,8 @@ const NAV = [
   { href: "/notes",    label: "Notes",      Icon: FileText },
   { href: "/graph",    label: "Graph",      Icon: Network },
   { href: "/forge",    label: "Forge",      Icon: FlaskConical },
+  { href: "/research", label: "Research",   Icon: Lightbulb },
+  { href: "/compare",  label: "Compare",    Icon: Columns2 },
 ];
 
 export default function Sidebar() {
