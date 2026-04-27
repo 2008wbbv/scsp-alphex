@@ -334,7 +334,8 @@ Requirements:
 - Cite inline as [S1], [S2], [S3] or combined [S1, S3] matching the numbered sources provided
 - End with a ## Research Gaps and Future Directions section grounded in the sources
 - Write in formal, concise academic prose — 700–1000 words
-- Return ONLY the review text in markdown. No preamble, no commentary, no fences."""
+- Return ONLY the review text in markdown. No preamble, no commentary, no fences.
+- Do NOT invent findings, statistics, or claims not present in the provided sources. If a source lacks detail, say so rather than extrapolating."""
 
 
 SCORING_SYSTEM = """You are a research writing evaluator. Score the given draft on five metrics (1–10 each) and give one specific, actionable improvement suggestion per metric.
@@ -536,7 +537,8 @@ INSIGHT: <key similarity, difference, or synthesis — 1-2 sentences>
 ASPECT_END
 
 Compare across: Research Question, Methodology, Dataset / Evaluation, Key Results, Limitations, Overall Contribution.
-Be specific; cite numbers or claims where available in the summaries."""
+Be specific; cite numbers or claims where available in the summaries.
+Do NOT invent claims, statistics, or findings not explicitly stated in the provided summaries."""
 
 
 def compare_papers(paper1: dict, paper2: dict) -> list[dict]:

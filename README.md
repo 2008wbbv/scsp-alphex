@@ -156,6 +156,23 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
+## Hallucination safeguards
+
+Every LLM call in Alphex is designed to prevent the model from inventing information not present in the provided context.
+
+| Feature | Safeguard |
+|---|---|
+| **Chat (RAG)** | System prompt explicitly prohibits answering from training knowledge. Every claim must be cited inline as `[S1]`, `[S2]`, etc. When no relevant chunks are found in the library, the response is forced to: *"I could not find relevant information in your library for this question."* Temperature locked to 0.1. Applies to both the standard and streaming chat endpoints. |
+| **Paper charts** | Charts are only generated when REAL numbers are explicitly stated in the paper text. If fewer than 2 concrete data points exist for a chart, it is skipped entirely. Fabricating or estimating values is explicitly prohibited in the system prompt. |
+| **Paper summaries** | System prompt instructs: *"Do not invent details that are not in the text."* Input is the raw paper text, not the model's prior knowledge. |
+| **Annotations / Glossary** | Only terms that literally appear in the provided chunks are returned. The first 2 chunks (author/affiliation headers) are skipped to prevent proper nouns being misidentified as technical terms. |
+| **Literature review** | Model is instructed not to invent findings or statistics not present in the provided source summaries. If a source lacks detail, the model is instructed to say so rather than extrapolate. |
+| **Paper comparison** | Model is explicitly told not to invent claims, statistics, or findings not stated in the provided summaries. |
+| **Research questions / Forge** | Both system prompts instruct the model to ground output in provided notes and paper excerpts only — not to invent results. |
+| **Auto-tagging** | Only topics, methods, and domains drawn from the title, abstract, and body excerpts. Proper nouns (author names, institutions, journals) are excluded by system prompt rule. |
+
+---
+
 ## Security notes
 
 - **Sandboxed chart execution.** Generated Python is regex-filtered for a blocklist of dangerous imports, runs in a 20-second `subprocess.run` with a minimal clean environment, and only writes to a randomly-named temp file.

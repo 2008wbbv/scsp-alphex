@@ -288,17 +288,21 @@ def chat_stream(body: ChatIn, user: CurrentUser = CurrentUserDep):
         if h.get("role") in {"user", "assistant"} and h.get("content")
     ][-8:]
 
-    context = "\n\n".join(blocks) if blocks else "(no relevant snippets found)"
-    messages = list(safe_history) + [
-        {
-            "role": "user",
-            "content": (
-                f"Context:\n{context}\n\n"
-                f"Question: {body.message}\n\n"
-                "Answer using only the context. Cite snippets inline like [S1]."
-            ),
-        }
-    ]
+    if blocks:
+        context = "\n\n".join(blocks)
+        user_content = (
+            f"Context snippets from your library:\n{context}\n\n"
+            f"Question: {body.message}\n\n"
+            "Give a detailed answer using the context above. Include specific numbers, findings, "
+            "and explanations. Cite each snippet inline as [S1], [S2], etc."
+        )
+    else:
+        user_content = (
+            f"Question: {body.message}\n\n"
+            "No context snippets were found in your library for this question. "
+            "Respond: 'I could not find relevant information in your library for this question.'"
+        )
+    messages = list(safe_history) + [{"role": "user", "content": user_content}]
 
     settings = get_settings()
     user_id = user.id
