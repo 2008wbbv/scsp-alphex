@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Download, Link2, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { Check, Copy, Download, FileCode, Link2, Loader2, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 
 import Shell from "@/components/Shell";
 import { api } from "@/lib/api";
@@ -26,6 +26,7 @@ export default function ForgeDraftPage() {
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [latexifying, setLatexifying] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -115,6 +116,52 @@ export default function ForgeDraftPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function downloadFile(content: string, filename: string, mime = "text/plain") {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
+
+  function buildLatexBody(secs: Section[]): string {
+    const parts: string[] = [];
+    for (const sec of secs) {
+      if (sec.type === "heading") {
+        parts.push(`## ${sec.content}`);
+      } else if (sec.type === "chart") {
+        parts.push(`### ${sec.content}`);
+        parts.push(`[Chart: ${sec.content}]`);
+        if (sec.comment) parts.push(`(${sec.comment})`);
+      } else {
+        if (sec.content) parts.push(sec.content);
+        if (sec.comment) parts.push(`(Note: ${sec.comment})`);
+      }
+    }
+    return parts.join("\n\n");
+  }
+
+  async function exportLatex() {
+    setLatexifying(true);
+    try {
+      const { exportLatex: doExport } = await import("@/lib/api").then((m) => ({ exportLatex: m.api.exportLatex.bind(m.api) }));
+      const out = await doExport({
+        title: latestTitle.current || "Draft",
+        body: buildLatexBody(latestSections.current),
+        paper_ids: [],
+      });
+      const slug = (latestTitle.current || "draft").replace(/\s+/g, "-").toLowerCase().replace(/[^a-z0-9-]/g, "");
+      downloadFile(out.tex, `${slug}.tex`, "application/x-tex");
+      if (out.bib.trim()) downloadFile(out.bib, "references.bib", "text/plain");
+    } catch (e: any) {
+      alert(e.message ?? "LaTeX export failed");
+    } finally {
+      setLatexifying(false);
+    }
+  }
+
   function exportMarkdown() {
     const lines: string[] = [`# ${latestTitle.current || "Draft"}`, ""];
     for (const sec of latestSections.current) {
@@ -166,7 +213,20 @@ export default function ForgeDraftPage() {
               title="Export as Markdown"
             >
               <Download size={11} />
-              Export
+              .md
+            </button>
+            <button
+              onClick={exportLatex}
+              disabled={latexifying}
+              className="flex items-center gap-1 chip hover:text-fg hover:border-border/60 disabled:opacity-50"
+              title="Export as LaTeX (.tex + .bib)"
+            >
+              {latexifying ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <FileCode size={11} />
+              )}
+              {latexifying ? "building…" : "LaTeX ↓"}
             </button>
             {shareUrl ? (
               <button

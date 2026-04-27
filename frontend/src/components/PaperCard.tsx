@@ -31,6 +31,7 @@ export default function PaperCard({
 }) {
   const [status, setStatus] = useState<Status>((paper.status as Status) ?? "unread");
   const [tagDraft, setTagDraft] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   async function updateStatus(s: Status) {
     const prev = status;
@@ -63,6 +64,29 @@ export default function PaperCard({
       onChange();
     } catch {
       // leave card in place
+    }
+  }
+
+  async function exportTex() {
+    setExporting(true);
+    try {
+      const body =
+        paper.summary ? `## Summary\n\n${paper.summary}\n\n[S1]`
+        : paper.abstract ? `## Abstract\n\n${paper.abstract}\n\n[S1]`
+        : `Paper: ${paper.title}\n\n[S1]`;
+      const out = await api.exportLatex({ title: paper.title, body, paper_ids: [paper.id] });
+      const dl = (content: string, name: string, mime: string) => {
+        const url = URL.createObjectURL(new Blob([content], { type: mime }));
+        const a = Object.assign(document.createElement("a"), { href: url, download: name });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      };
+      dl(out.tex, out.filename, "application/x-tex");
+      if (out.bib.trim()) dl(out.bib, "references.bib", "text/plain");
+    } catch {
+      // ignore — paper is still usable
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -165,6 +189,14 @@ export default function PaperCard({
                 source ↗
               </a>
             )}
+            <button
+              onClick={exportTex}
+              disabled={exporting}
+              className="chip hover:text-fg hover:border-border/60 disabled:opacity-50"
+              title="Export as LaTeX"
+            >
+              {exporting ? "…" : ".tex"}
+            </button>
             <Link href={`/papers/${paper.id}`} className="chip hover:text-fg hover:border-border/60">
               open →
             </Link>

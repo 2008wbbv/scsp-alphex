@@ -79,26 +79,42 @@ export default function PaperPage({ params }: { params: { id: string } }) {
     }
   }
 
+  function downloadFile(content: string, filename: string, mime = "text/plain") {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
+
   async function exportTex() {
     if (!paper) return;
     setExporting(true);
     try {
-      const body =
-        paper.summary ||
-        paper.abstract ||
-        `Notes on "${paper.title}".`;
+      // Build a structured body: abstract → summary → user notes
+      const sections: string[] = [];
+      if (paper.abstract) {
+        sections.push(`## Abstract\n\n${paper.abstract}`);
+      }
+      if (paper.summary) {
+        sections.push(`## Summary\n\n${paper.summary}\n\n[S1]`);
+      }
+      if (notes.length > 0) {
+        const noteText = notes.map((n: any) => n.content).join("\n\n");
+        sections.push(`## Notes\n\n${noteText}`);
+      }
+      if (sections.length === 0) {
+        sections.push(`Notes on "${paper.title}".\n\n[S1]`);
+      }
       const out = await api.exportLatex({
         title: paper.title,
-        body: `${body}\n\n[S1]`,
+        body: sections.join("\n\n"),
         paper_ids: [paper.id],
       });
-      const blob = new Blob([out.tex], { type: "application/x-tex" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = out.filename;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      downloadFile(out.tex, out.filename, "application/x-tex");
+      if (out.bib.trim()) downloadFile(out.bib, "references.bib", "text/plain");
     } finally {
       setExporting(false);
     }
@@ -124,9 +140,24 @@ export default function PaperPage({ params }: { params: { id: string } }) {
     <Shell>
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
-          <Link href="/library" className="text-sm text-muted hover:text-fg">
-            ← Library
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link href="/library" className="text-sm text-muted hover:text-fg">
+              ← Library
+            </Link>
+            <button
+              onClick={exportTex}
+              disabled={exporting}
+              className="flex items-center gap-1.5 chip hover:text-fg hover:border-border/60 disabled:opacity-50"
+              title="Export as LaTeX (.tex + references.bib)"
+            >
+              {exporting ? (
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border border-muted border-t-fg" />
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              )}
+              {exporting ? "building…" : "Export .tex"}
+            </button>
+          </div>
           <div>
             <div className="text-xs uppercase tracking-wide text-muted">
               {paper.source_type ?? "paper"}
